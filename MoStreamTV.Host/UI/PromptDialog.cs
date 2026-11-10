@@ -2,19 +2,27 @@ namespace MoStreamTV.Host.UI;
 
 internal static class PromptDialog
 {
-    public static string? ShowTextInput(IWin32Window owner, string title, string prompt, bool multiline = false)
+    public static string? ShowTextInput(
+        IWin32Window owner,
+        string title,
+        string prompt,
+        bool multiline = false,
+        ThemePalette? palette = null)
     {
         using var dialog = new Form
         {
             Text = title,
+            Icon = BrandAssets.AppIcon,
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MinimizeBox = false,
             MaximizeBox = false,
             ShowInTaskbar = false,
             Font = new Font("Segoe UI", 10F),
-            ClientSize = multiline ? new Size(480, 230) : new Size(460, 140),
+            ClientSize = multiline ? new Size(520, 250) : new Size(500, 172),
         };
+
+        var activePalette = palette ?? AppTheme.GetPalette(AppTheme.LoadDarkPreference());
 
         var layout = new TableLayoutPanel
         {
@@ -53,14 +61,14 @@ internal static class PromptDialog
             Margin = new Padding(0),
         };
 
-        var cancelButton = new Button
+        var cancelButton = new ThemedButton
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,
             Width = 88,
             Height = 30,
         };
-        var okButton = new Button
+        var okButton = new ThemedButton
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
@@ -80,6 +88,8 @@ internal static class PromptDialog
         if (!multiline)
             dialog.AcceptButton = okButton;
         dialog.CancelButton = cancelButton;
+        dialog.HandleCreated += (_, _) => AppTheme.ApplyTitleBar(dialog, activePalette.IsDark);
+        AppTheme.ApplyToForm(dialog, activePalette);
 
         return dialog.ShowDialog(owner) == DialogResult.OK
             ? input.Text.Trim()

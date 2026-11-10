@@ -6,44 +6,26 @@ internal sealed class WatchPartyPanel : Panel
 {
     private const int MaxLogLines = 400;
 
-    private const string IdleNowPlayingText = "Start or join a watch party above to open your media player and sync playback here.";
-
-    private readonly Label _nowPlayingLabel = new()
+    private enum LogTone
     {
-        AutoEllipsis = true,
-        Dock = DockStyle.Fill,
-        TextAlign = ContentAlignment.MiddleLeft,
-        Font = new Font("Segoe UI Semibold", 9.5F),
-        Text = IdleNowPlayingText,
-    };
+        Info,
+        Notice,
+        Chat,
+    }
 
-    private readonly Button _playButton = new() { Text = "Play", Width = 64, Height = 28 };
-    private readonly Button _pauseButton = new() { Text = "Pause", Width = 68, Height = 28 };
-    private readonly TextBox _seekInput = new() { Text = "0:00", Width = 58, Margin = new Padding(6, 3, 3, 3) };
-    private readonly Button _seekButton = new() { Text = "Seek", Width = 58, Height = 28 };
-    private readonly Button _undoSeekButton = new() { Text = "Undo", Width = 60, Height = 28 };
-    private readonly Button _openMovieButton = new() { Text = "Open movie...", Width = 108, Height = 28 };
-    private readonly Button _openUrlButton = new() { Text = "Open URL...", Width = 98, Height = 28 };
+    private sealed record LogEntry(string Timestamp, string? Prefix, string Text, LogTone Tone);
 
-    private readonly RichTextBox _activityLog = new()
-    {
-        Dock = DockStyle.Fill,
-        ReadOnly = true,
-        BackColor = SystemColors.Window,
-        BorderStyle = BorderStyle.FixedSingle,
-        DetectUrls = false,
-        ScrollBars = RichTextBoxScrollBars.Vertical,
-        Font = new Font("Segoe UI", 9.5F),
-    };
+    private readonly RichTextBox _chatLog = CreateReadOnlyLogBox();
     private readonly TextBox _chatInput = new()
     {
         Dock = DockStyle.Fill,
         PlaceholderText = "Type a chat message...",
     };
-    private readonly Button _chatSendButton = new() { Text = "Send", Dock = DockStyle.Fill, Height = 28 };
+    private readonly Button _chatSendButton = new ThemedButton { Text = "Send", Dock = DockStyle.Fill, Height = 28 };
+    private readonly RichTextBox _activityLog = CreateReadOnlyLogBox();
 
     private readonly ComboBox _roomCombo = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown };
-    private readonly Button _joinRoomButton = new() { Text = "Join room", Dock = DockStyle.Fill, Height = 28 };
+    private readonly Button _joinRoomButton = new ThemedButton { Text = "Join room", Dock = DockStyle.Fill, Height = 28 };
 
     private readonly ListView _userList = new()
     {
@@ -62,7 +44,7 @@ internal sealed class WatchPartyPanel : Panel
         Text = "I'm ready to watch!",
         TextAlign = ContentAlignment.MiddleCenter,
         Height = 30,
-        Width = 152,
+        Width = 160,
         Font = new Font("Segoe UI Semibold", 9.5F),
     };
     private readonly CheckBox _autoPlayCheckBox = new()
@@ -76,7 +58,7 @@ internal sealed class WatchPartyPanel : Panel
         Minimum = 2,
         Maximum = 99,
         Value = 2,
-        Width = 48,
+        Width = 52,
         Margin = new Padding(2, 4, 0, 0),
     };
 
@@ -92,30 +74,32 @@ internal sealed class WatchPartyPanel : Panel
         HideSelection = false,
     };
     private readonly ColumnHeader _playlistColumn = new() { Text = "Playlist", Width = 300 };
-    private readonly Button _addFilesButton = new() { Text = "Add file(s)...", Width = 96, Height = 26 };
-    private readonly Button _addUrlButton = new() { Text = "Add URL...", Width = 84, Height = 26 };
-    private readonly Button _playPlaylistButton = new() { Text = "Play", Width = 54, Height = 26 };
-    private readonly Button _removePlaylistButton = new() { Text = "Remove", Width = 72, Height = 26 };
-    private readonly Button _shufflePlaylistButton = new() { Text = "Shuffle", Width = 68, Height = 26 };
+    private readonly Button _addFilesButton = CreateToolbarButton("Add file(s)...");
+    private readonly Button _addUrlButton = CreateToolbarButton("Add URL...");
+    private readonly Button _playPlaylistButton = CreateToolbarButton("Play");
+    private readonly Button _removePlaylistButton = CreateToolbarButton("Remove");
+    private readonly Button _shufflePlaylistButton = CreateToolbarButton("Shuffle");
 
-    private readonly ColumnHeader _viewerColumn = new() { Text = "Viewer", Width = 120 };
-    private readonly ColumnHeader _statusColumn = new() { Text = "Status", Width = 84 };
-    private readonly ColumnHeader _movieColumn = new() { Text = "Movie", Width = 165 };
-    private readonly ColumnHeader _lengthColumn = new() { Text = "Length", Width = 68 };
-    private readonly ColumnHeader _sizeColumn = new() { Text = "Size", Width = 64 };
+    private readonly ColumnHeader _viewerColumn = new() { Text = "Viewer", Width = 132 };
+    private readonly ColumnHeader _statusColumn = new() { Text = "Status", Width = 96 };
+    private readonly ColumnHeader _movieColumn = new() { Text = "Movie", Width = 160 };
+    private readonly ColumnHeader _lengthColumn = new() { Text = "Length", Width = 78 };
+    private readonly ColumnHeader _sizeColumn = new() { Text = "Size", Width = 74 };
 
     private readonly Font _boldListFont;
     private readonly Font _boldLogFont;
+    private readonly List<LogEntry> _chatEntries = [];
+    private readonly List<LogEntry> _activityEntries = [];
 
+    private ThemePalette _palette = AppTheme.Light;
     private bool _suppressEvents;
     private bool _isActive;
-    private string? _currentMovieName;
 
     public WatchPartyPanel()
     {
         Dock = DockStyle.Fill;
         _boldListFont = new Font(_userList.Font, FontStyle.Bold);
-        _boldLogFont = new Font(_activityLog.Font, FontStyle.Bold);
+        _boldLogFont = new Font(_chatLog.Font, FontStyle.Bold);
 
         _userList.Columns.AddRange([_viewerColumn, _statusColumn, _movieColumn, _lengthColumn, _sizeColumn]);
         _playlistView.Columns.Add(_playlistColumn);
@@ -135,12 +119,6 @@ internal sealed class WatchPartyPanel : Panel
         base.Dispose(disposing);
     }
 
-    public event EventHandler? PlayRequested;
-    public event EventHandler? PauseRequested;
-    public event EventHandler<string>? SeekRequested;
-    public event EventHandler? UndoSeekRequested;
-    public event EventHandler? OpenMovieRequested;
-    public event EventHandler<string>? OpenUrlRequested;
     public event EventHandler<string>? ChatSubmitted;
     public event EventHandler<string>? JoinRoomRequested;
     public event EventHandler<bool>? ReadyChanged;
@@ -152,17 +130,29 @@ internal sealed class WatchPartyPanel : Panel
     public event EventHandler<int[]>? RemovePlaylistIndicesRequested;
     public event EventHandler? ShufflePlaylistRequested;
 
+    public void ApplyTheme(ThemePalette palette)
+    {
+        _palette = palette;
+        _userList.GridLines = !palette.IsDark;
+        UpdateReadyButtonVisual();
+
+        foreach (ListViewItem item in _userList.Items)
+        {
+            if (item.Tag is WatchPartyUser user && user.Differs)
+                item.ForeColor = _palette.ErrorText;
+            else
+                item.ForeColor = _palette.TextPrimary;
+        }
+
+        RebuildLog(_chatLog, _chatEntries);
+        RebuildLog(_activityLog, _activityEntries);
+        _userList.Invalidate();
+    }
+
     public void SetActive(bool active)
     {
         _isActive = active;
 
-        _playButton.Enabled = active;
-        _pauseButton.Enabled = active;
-        _seekInput.Enabled = active;
-        _seekButton.Enabled = active;
-        _undoSeekButton.Enabled = active;
-        _openMovieButton.Enabled = active;
-        _openUrlButton.Enabled = active;
         _chatInput.Enabled = active;
         _chatSendButton.Enabled = active;
         _roomCombo.Enabled = active;
@@ -180,8 +170,6 @@ internal sealed class WatchPartyPanel : Panel
 
         if (!active)
         {
-            _currentMovieName = null;
-            _nowPlayingLabel.Text = IdleNowPlayingText;
             _userList.Items.Clear();
             _userList.Groups.Clear();
             _playlistView.Items.Clear();
@@ -190,30 +178,29 @@ internal sealed class WatchPartyPanel : Panel
             SetReadyChecked(false);
             SetAutoPlayChecked(false);
         }
-        else if (string.IsNullOrWhiteSpace(_currentMovieName))
-        {
-            _nowPlayingLabel.Text = "Connected — no movie loaded yet. Choose a movie or add files to the playlist.";
-        }
     }
 
     public void ResetSessionLog()
     {
+        _chatEntries.Clear();
+        _activityEntries.Clear();
+        _chatLog.Clear();
         _activityLog.Clear();
     }
 
     public void AppendInfoMessage(string timestamp, string text)
     {
-        AppendLine(timestamp, null, text, SystemColors.ControlText, SystemColors.GrayText);
+        AppendEntry(_activityLog, _activityEntries, new LogEntry(timestamp, null, text, LogTone.Info));
     }
 
     public void AppendErrorMessage(string timestamp, string text)
     {
-        AppendLine(timestamp, "Notice: ", text, Color.Firebrick, Color.Firebrick);
+        AppendEntry(_activityLog, _activityEntries, new LogEntry(timestamp, "Notice: ", text, LogTone.Notice));
     }
 
     public void AppendChatMessage(string timestamp, string username, string message)
     {
-        AppendLine(timestamp, $"<{username}> ", message, SystemColors.ControlText, Color.FromArgb(24, 90, 157));
+        AppendEntry(_chatLog, _chatEntries, new LogEntry(timestamp, $"<{username}> ", message, LogTone.Chat));
     }
 
     public void ApplyUserList(WatchPartyUserListUpdate update)
@@ -229,15 +216,15 @@ internal sealed class WatchPartyPanel : Panel
             _roomCombo.Items.Clear();
             foreach (var room in update.KnownRooms)
                 _roomCombo.Items.Add(room);
-            if (!string.IsNullOrWhiteSpace(update.CurrentRoom))
-                _roomCombo.Text = update.CurrentRoom;
-            else
-                _roomCombo.Text = currentRoomText;
+            _roomCombo.Text = !string.IsNullOrWhiteSpace(update.CurrentRoom)
+                ? update.CurrentRoom
+                : currentRoomText;
             _roomCombo.EndUpdate();
 
             _userList.BeginUpdate();
             _userList.Items.Clear();
             _userList.Groups.Clear();
+            _userList.ShowGroups = update.Rooms.Count > 1;
 
             foreach (var room in update.Rooms)
             {
@@ -257,6 +244,7 @@ internal sealed class WatchPartyPanel : Panel
                     var item = new ListViewItem(displayName, group)
                     {
                         Tag = user,
+                        ForeColor = user.Differs ? _palette.ErrorText : _palette.TextPrimary,
                     };
                     item.SubItems.Add(status);
                     item.SubItems.Add(string.IsNullOrWhiteSpace(user.Filename) ? "(No file)" : user.Filename);
@@ -267,14 +255,9 @@ internal sealed class WatchPartyPanel : Panel
                         item.Font = _boldListFont;
 
                     if (user.Differs)
-                    {
-                        item.ForeColor = Color.Firebrick;
                         item.ToolTipText = $"File differs ({user.DiffDetail}). Double-click to switch if available locally.";
-                    }
                     else if (!string.IsNullOrWhiteSpace(user.Filename) && !user.IsSelf)
-                    {
                         item.ToolTipText = $"Double-click to switch to {user.Filename}";
-                    }
 
                     _userList.Items.Add(item);
                 }
@@ -313,29 +296,6 @@ internal sealed class WatchPartyPanel : Panel
         _playlistView.EndUpdate();
     }
 
-    public void ApplyPlayerState(WatchPartyPlayerState state)
-    {
-        _currentMovieName = state.Filename;
-        if (!_isActive)
-            return;
-
-        if (string.IsNullOrWhiteSpace(state.Filename))
-        {
-            _nowPlayingLabel.Text = "Connected — no movie loaded yet. Choose a movie or add files to the playlist.";
-            return;
-        }
-
-        var playStateText = state.Paused switch
-        {
-            true => "Paused",
-            false => "Playing",
-            null => "Ready",
-        };
-        var posText = FormatDuration(state.PositionSeconds);
-        var durText = state.DurationSeconds > 0 ? $" / {FormatDuration(state.DurationSeconds)}" : string.Empty;
-        _nowPlayingLabel.Text = $"Now playing: {state.Filename}  •  {playStateText} ({posText}{durText})";
-    }
-
     public void ApplyRoomName(string room)
     {
         _suppressEvents = true;
@@ -363,87 +323,81 @@ internal sealed class WatchPartyPanel : Panel
         }
     }
 
+    private static RichTextBox CreateReadOnlyLogBox() => new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        BackColor = SystemColors.Window,
+        BorderStyle = BorderStyle.FixedSingle,
+        DetectUrls = false,
+        ScrollBars = RichTextBoxScrollBars.Vertical,
+        Font = new Font("Segoe UI", 9.5F),
+    };
+
+    private static Button CreateToolbarButton(string text) => new ThemedButton
+    {
+        Text = text,
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        Height = 28,
+        MinimumSize = new Size(56, 28),
+        Padding = new Padding(7, 2, 7, 2),
+        Margin = new Padding(0, 0, 5, 3),
+    };
+
     private Control BuildLayout()
     {
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Margin = new Padding(0),
-        };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _nowPlayingLabel.Dock = DockStyle.Fill;
-        _nowPlayingLabel.Height = 24;
-        _nowPlayingLabel.Margin = new Padding(0, 0, 0, 4);
-        root.Controls.Add(_nowPlayingLabel, 0, 0);
-        root.Controls.Add(BuildMediaPlaybackBar(), 0, 1);
-
         var split = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 1,
-            Margin = new Padding(0, 6, 0, 0),
+            Margin = new Padding(0),
         };
         split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 43));
         split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 57));
         split.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        split.Controls.Add(BuildChatPane(), 0, 0);
+        split.Controls.Add(BuildChatAndActivityPane(), 0, 0);
         split.Controls.Add(BuildRoomAndPlaylistPane(), 1, 0);
-
-        root.Controls.Add(split, 0, 2);
-        return root;
+        return split;
     }
 
-    private Control BuildMediaPlaybackBar()
-    {
-        var controls = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            WrapContents = true,
-            Margin = new Padding(0),
-        };
-        controls.Controls.Add(_playButton);
-        controls.Controls.Add(_pauseButton);
-        controls.Controls.Add(_seekInput);
-        controls.Controls.Add(_seekButton);
-        controls.Controls.Add(_undoSeekButton);
-        controls.Controls.Add(_openMovieButton);
-        controls.Controls.Add(_openUrlButton);
-        return controls;
-    }
-
-    private Control BuildChatPane()
+    private Control BuildChatAndActivityPane()
     {
         var pane = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
-            Padding = new Padding(0, 0, 6, 0),
+            RowCount = 2,
+            Padding = new Padding(0, 0, 8, 0),
+            Margin = new Padding(0),
         };
         pane.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        pane.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        pane.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        pane.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        pane.RowStyles.Add(new RowStyle(SizeType.Percent, 56));
+        pane.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
 
-        pane.Controls.Add(new Label
+        var chatSection = new TableLayoutPanel
         {
-            Text = "Activity & chat",
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Margin = new Padding(0, 0, 0, 6),
+        };
+        chatSection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        chatSection.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        chatSection.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        chatSection.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        chatSection.Controls.Add(new Label
+        {
+            Text = "Chat",
             UseMnemonic = false,
             AutoSize = true,
             Font = new Font("Segoe UI Semibold", 9.5F),
-            Margin = new Padding(0, 4, 0, 4),
+            Margin = new Padding(0, 2, 0, 4),
         }, 0, 0);
-
-        pane.Controls.Add(_activityLog, 0, 1);
+        chatSection.Controls.Add(_chatLog, 0, 1);
 
         var chatRow = new TableLayoutPanel
         {
@@ -454,12 +408,34 @@ internal sealed class WatchPartyPanel : Panel
             Margin = new Padding(0, 6, 0, 0),
         };
         chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
+        chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78));
         chatRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         chatRow.Controls.Add(_chatInput, 0, 0);
         chatRow.Controls.Add(_chatSendButton, 1, 0);
+        chatSection.Controls.Add(chatRow, 0, 2);
 
-        pane.Controls.Add(chatRow, 0, 2);
+        var activitySection = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Margin = new Padding(0, 4, 0, 0),
+        };
+        activitySection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        activitySection.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        activitySection.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        activitySection.Controls.Add(new Label
+        {
+            Text = "Activity log",
+            UseMnemonic = false,
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 9.5F),
+            Margin = new Padding(0, 0, 0, 4),
+        }, 0, 0);
+        activitySection.Controls.Add(_activityLog, 0, 1);
+
+        pane.Controls.Add(chatSection, 0, 0);
+        pane.Controls.Add(activitySection, 0, 1);
         return pane;
     }
 
@@ -505,7 +481,7 @@ internal sealed class WatchPartyPanel : Panel
         };
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
+        headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
         headerRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         headerRow.Controls.Add(new Label
@@ -587,21 +563,6 @@ internal sealed class WatchPartyPanel : Panel
 
     private void WireEvents()
     {
-        _playButton.Click += (_, _) => PlayRequested?.Invoke(this, EventArgs.Empty);
-        _pauseButton.Click += (_, _) => PauseRequested?.Invoke(this, EventArgs.Empty);
-        _seekButton.Click += (_, _) => SubmitSeek();
-        _seekInput.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter)
-            {
-                e.SuppressKeyPress = true;
-                SubmitSeek();
-            }
-        };
-        _undoSeekButton.Click += (_, _) => UndoSeekRequested?.Invoke(this, EventArgs.Empty);
-        _openMovieButton.Click += (_, _) => OpenMovieRequested?.Invoke(this, EventArgs.Empty);
-        _openUrlButton.Click += (_, _) => PromptOpenUrl();
-
         _chatSendButton.Click += (_, _) => SubmitChat();
         _chatInput.KeyDown += (_, e) =>
         {
@@ -639,6 +600,9 @@ internal sealed class WatchPartyPanel : Panel
                 AutoPlayChanged?.Invoke(this, (_autoPlayCheckBox.Checked, decimal.ToInt32(_autoPlayMinUsers.Value)));
         };
 
+        _userList.DrawColumnHeader += UserListOnDrawColumnHeader;
+        _userList.DrawItem += (_, _) => { };
+        _userList.DrawSubItem += UserListOnDrawSubItem;
         _userList.DoubleClick += (_, _) =>
         {
             if (_userList.SelectedItems.Count == 1 && _userList.SelectedItems[0].Tag is WatchPartyUser user
@@ -686,11 +650,45 @@ internal sealed class WatchPartyPanel : Panel
         };
     }
 
-    private void SubmitSeek()
+    private void UserListOnDrawColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
     {
-        var target = _seekInput.Text.Trim();
-        if (!string.IsNullOrEmpty(target))
-            SeekRequested?.Invoke(this, target);
+        using var backBrush = new SolidBrush(_palette.SurfaceBack);
+        using var borderPen = new Pen(_palette.Border);
+        e.Graphics.FillRectangle(backBrush, e.Bounds);
+        e.Graphics.DrawLine(borderPen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+        e.Graphics.DrawLine(borderPen, e.Bounds.Right - 1, e.Bounds.Top + 2, e.Bounds.Right - 1, e.Bounds.Bottom - 3);
+
+        var textBounds = new Rectangle(e.Bounds.X + 6, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 10), e.Bounds.Height);
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.Header?.Text ?? string.Empty,
+            _userList.Font,
+            textBounds,
+            _palette.TextMuted,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+
+    private void UserListOnDrawSubItem(object? sender, DrawListViewSubItemEventArgs e)
+    {
+        if (e.Item is null)
+            return;
+
+        var backColor = e.Item.Selected ? _palette.SelectionBack : _userList.BackColor;
+        var foreColor = e.Item.Selected ? Color.White : e.Item.ForeColor;
+        using var backBrush = new SolidBrush(backColor);
+        e.Graphics.FillRectangle(backBrush, e.Bounds);
+
+        using var linePen = new Pen(_palette.SurfaceBack);
+        e.Graphics.DrawLine(linePen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+
+        var textBounds = new Rectangle(e.Bounds.X + 6, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 10), e.Bounds.Height);
+        TextRenderer.DrawText(
+            e.Graphics,
+            e.SubItem?.Text ?? string.Empty,
+            e.Item.Font,
+            textBounds,
+            foreColor,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
 
     private void SubmitChat()
@@ -708,17 +706,6 @@ internal sealed class WatchPartyPanel : Panel
         var room = _roomCombo.Text.Trim();
         if (!string.IsNullOrEmpty(room))
             JoinRoomRequested?.Invoke(this, room);
-    }
-
-    private void PromptOpenUrl()
-    {
-        var owner = FindForm();
-        if (owner is null)
-            return;
-
-        var url = PromptDialog.ShowTextInput(owner, "Open media stream URL", "Enter a stream URL (HTTP/HTTPS):");
-        if (!string.IsNullOrWhiteSpace(url))
-            OpenUrlRequested?.Invoke(this, url);
     }
 
     private void PromptAddPlaylistFiles()
@@ -748,7 +735,8 @@ internal sealed class WatchPartyPanel : Panel
             owner,
             "Add stream URL(s) to playlist",
             "Enter one or more stream URLs (one per line):",
-            multiline: true);
+            multiline: true,
+            palette: _palette);
 
         if (string.IsNullOrWhiteSpace(raw))
             return;
@@ -787,12 +775,23 @@ internal sealed class WatchPartyPanel : Panel
         if (_readyCheckBox.Checked)
         {
             _readyCheckBox.Text = "✓ Ready to watch";
-            _readyCheckBox.BackColor = Color.FromArgb(223, 245, 228);
+            _readyCheckBox.FlatStyle = _palette.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
+            _readyCheckBox.UseVisualStyleBackColor = false;
+            _readyCheckBox.BackColor = _palette.ReadyBack;
+            _readyCheckBox.ForeColor = _palette.ReadyFore;
+            if (_palette.IsDark)
+            {
+                _readyCheckBox.FlatAppearance.BorderSize = 1;
+                _readyCheckBox.FlatAppearance.BorderColor = Color.FromArgb(62, 148, 96);
+                _readyCheckBox.FlatAppearance.CheckedBackColor = _palette.ReadyBack;
+                _readyCheckBox.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 104, 66);
+            }
         }
         else
         {
             _readyCheckBox.Text = "I'm ready to watch!";
-            _readyCheckBox.BackColor = SystemColors.Control;
+            _readyCheckBox.FlatAppearance.CheckedBackColor = _palette.ButtonBack;
+            AppTheme.StyleButton(_readyCheckBox, _palette);
         }
     }
 
@@ -807,60 +806,71 @@ internal sealed class WatchPartyPanel : Panel
             return;
 
         var fixedWidth = _viewerColumn.Width + _statusColumn.Width + _lengthColumn.Width + _sizeColumn.Width;
-        var remaining = _userList.ClientSize.Width - fixedWidth - 2;
+        var remaining = _userList.ClientSize.Width - fixedWidth - 4;
         if (remaining > 90)
             _movieColumn.Width = remaining;
     }
 
     private void ResizePlaylistColumn()
     {
-        if (_playlistView.ClientSize.Width > 20)
-            _playlistColumn.Width = _playlistView.ClientSize.Width - 2;
+        if (_playlistView.ClientSize.Width > 30)
+            _playlistColumn.Width = Math.Max(80, _playlistView.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 6);
     }
 
-    private void AppendLine(string timestamp, string? prefix, string text, Color bodyColor, Color prefixColor)
+    private void AppendEntry(RichTextBox box, List<LogEntry> entries, LogEntry entry)
     {
-        if (_activityLog.Lines.Length > MaxLogLines)
+        entries.Add(entry);
+        if (entries.Count > MaxLogLines)
         {
-            var trimIndex = _activityLog.GetFirstCharIndexFromLine(_activityLog.Lines.Length - MaxLogLines);
-            if (trimIndex > 0)
-            {
-                _activityLog.Select(0, trimIndex);
-                _activityLog.SelectedText = string.Empty;
-            }
+            entries.RemoveAt(0);
+            RebuildLog(box, entries);
+            return;
         }
 
-        _activityLog.SelectionStart = _activityLog.TextLength;
-        _activityLog.SelectionLength = 0;
-
-        if (!string.IsNullOrWhiteSpace(timestamp))
-        {
-            _activityLog.SelectionColor = SystemColors.GrayText;
-            _activityLog.SelectionFont = _activityLog.Font;
-            _activityLog.AppendText($"[{timestamp}] ");
-        }
-
-        if (!string.IsNullOrEmpty(prefix))
-        {
-            _activityLog.SelectionColor = prefixColor;
-            _activityLog.SelectionFont = _boldLogFont;
-            _activityLog.AppendText(prefix);
-        }
-
-        _activityLog.SelectionColor = bodyColor;
-        _activityLog.SelectionFont = _activityLog.Font;
-        _activityLog.AppendText(text + Environment.NewLine);
-        _activityLog.SelectionStart = _activityLog.TextLength;
-        _activityLog.ScrollToCaret();
+        RenderEntry(box, entry);
+        box.SelectionStart = box.TextLength;
+        box.ScrollToCaret();
     }
 
-    private static string FormatDuration(double seconds)
+    private void RebuildLog(RichTextBox box, IReadOnlyList<LogEntry> entries)
     {
-        if (seconds < 0)
-            seconds = 0;
-        var span = TimeSpan.FromSeconds(Math.Floor(seconds));
-        return span.TotalHours >= 1
-            ? span.ToString(@"h\:mm\:ss")
-            : span.ToString(@"m\:ss");
+        box.SuspendLayout();
+        box.Clear();
+        foreach (var entry in entries)
+            RenderEntry(box, entry);
+        box.SelectionStart = box.TextLength;
+        box.ScrollToCaret();
+        box.ResumeLayout();
+    }
+
+    private void RenderEntry(RichTextBox box, LogEntry entry)
+    {
+        var (bodyColor, prefixColor) = entry.Tone switch
+        {
+            LogTone.Notice => (_palette.ErrorText, _palette.ErrorText),
+            LogTone.Chat => (_palette.TextPrimary, _palette.AccentUser),
+            _ => (_palette.TextPrimary, _palette.TextMuted),
+        };
+
+        box.SelectionStart = box.TextLength;
+        box.SelectionLength = 0;
+
+        if (!string.IsNullOrWhiteSpace(entry.Timestamp))
+        {
+            box.SelectionColor = _palette.TextMuted;
+            box.SelectionFont = box.Font;
+            box.AppendText($"[{entry.Timestamp}] ");
+        }
+
+        if (!string.IsNullOrEmpty(entry.Prefix))
+        {
+            box.SelectionColor = prefixColor;
+            box.SelectionFont = _boldLogFont;
+            box.AppendText(entry.Prefix);
+        }
+
+        box.SelectionColor = bodyColor;
+        box.SelectionFont = box.Font;
+        box.AppendText(entry.Text + Environment.NewLine);
     }
 }

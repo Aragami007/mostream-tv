@@ -50,7 +50,7 @@ internal sealed partial class WebSocketTunnelHost : IAsyncDisposable
             return PublicWssUrl;
 
         var cloudflaredExe = await _runtime.EnsureAvailableAsync(statusCallback, cancellationToken);
-        statusCallback?.Invoke("Opening Internet watch party tunnel (no Hamachi)...");
+        statusCallback?.Invoke("Opening Internet watch party tunnel...");
 
         _stopping = false;
         _targetPort = targetPort;

@@ -8,10 +8,17 @@ namespace MoStreamTV.Host;
 internal sealed class MainForm : Form
 {
     private const string MovieFileFilter = "Video files|*.mkv;*.mp4;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.mpg;*.mpeg|All files|*.*";
-    private const string IdleHostPlaceholder = "Start the watch party to get a shareable wss:// link (no Hamachi needed), room, and password.";
+    private const string IdleHostPlaceholder = "Start the watch party to get a shareable link, room, and password.";
     private const string IdleJoinPlaceholder = "Paste your friend's invite link (wss://...) or IP, room, and password, then click Join watch party.";
-    private const string HostInternetServerDisplayText = "This computer (built-in Internet tunnel + LAN)";
+    private const string HostInternetServerDisplayText = "This computer (Internet tunnel + LAN)";
     private const string HostLanServerDisplayText = "This computer (LAN / Wi-Fi only)";
+
+    private readonly ThemeToggleButton _themeToggleButton = new()
+    {
+        Dock = DockStyle.Right,
+        Margin = new Padding(0, 1, 0, 1),
+    };
+    private readonly ToolTip _toolTip = new();
 
     private readonly RadioButton _hostModeRadio = new()
     {
@@ -31,7 +38,7 @@ internal sealed class MainForm : Form
     };
     private readonly CheckBox _shareOverInternetCheckBox = new()
     {
-        Text = "Share over Internet (no Hamachi / no router setup)",
+        Text = "Share over Internet",
         UseMnemonic = false,
         AutoSize = true,
         Checked = true,
@@ -42,11 +49,12 @@ internal sealed class MainForm : Form
     private readonly TextBox _serverHost = new()
     {
         Dock = DockStyle.Fill,
-        Enabled = false,
+        ReadOnly = true,
+        TabStop = false,
         Text = HostInternetServerDisplayText,
         PlaceholderText = "Friend's invite link (wss://...) or IP (e.g. 192.168.1.25:8999)",
     };
-    private readonly Button _pasteInviteButton = new()
+    private readonly Button _pasteInviteButton = new ThemedButton
     {
         Text = "Paste invite",
         Height = 30,
@@ -65,20 +73,20 @@ internal sealed class MainForm : Form
         Dock = DockStyle.Fill,
         PlaceholderText = "Choose a movie file (or add one after starting)",
     };
-    private readonly Button _browseButton = new() { Text = "Choose movie...", Height = 30, Dock = DockStyle.Fill };
+    private readonly Button _browseButton = new ThemedButton { Text = "Choose movie...", Height = 30, Dock = DockStyle.Fill };
     private readonly TextBox _playerPath = new()
     {
         ReadOnly = true,
         Dock = DockStyle.Fill,
         PlaceholderText = "Choose VLC, mpv, mpv.net, MPC-HC, or MPC-BE",
     };
-    private readonly Button _browsePlayerButton = new() { Text = "Choose player...", Height = 30, Dock = DockStyle.Fill };
+    private readonly Button _browsePlayerButton = new ThemedButton { Text = "Choose player...", Height = 30, Dock = DockStyle.Fill };
 
-    private readonly Button _startButton = new() { Text = "Start watch party", Height = 38, Dock = DockStyle.Fill };
-    private readonly Button _stopButton = new() { Text = "Stop watch party", Height = 38, Dock = DockStyle.Fill, Enabled = false };
-    private readonly Button _copyButton = new() { Text = "Copy join details", Height = 38, Dock = DockStyle.Fill, Enabled = false };
+    private readonly Button _startButton = new ThemedButton { Text = "Start watch party", Height = 38, Dock = DockStyle.Fill };
+    private readonly Button _stopButton = new ThemedButton { Text = "Stop watch party", Height = 38, Dock = DockStyle.Fill, Enabled = false };
+    private readonly Button _copyButton = new ThemedButton { Text = "Copy join details", Height = 38, Dock = DockStyle.Fill, Enabled = false };
     private readonly Label _status = new() { Text = "Watch party is off", AutoSize = true, Font = new Font("Segoe UI Semibold", 10F) };
-    private readonly GroupBox _inviteGroup = new()
+    private readonly ThemedGroupBox _inviteGroup = new()
     {
         Text = "Invite friends",
         Dock = DockStyle.Fill,
@@ -98,6 +106,7 @@ internal sealed class MainForm : Form
         Dock = DockStyle.Top,
         AutoSize = false,
         Height = 52,
+        Tag = "muted",
         ForeColor = SystemColors.GrayText,
         Padding = new Padding(0, 4, 0, 0),
     };
@@ -110,6 +119,7 @@ internal sealed class MainForm : Form
     private readonly SyncplayClientSession _clientSession;
     private HostConfiguration? _activeConfiguration;
     private CancellationTokenSource? _startupCts;
+    private bool _isDarkTheme;
     private string _hostPassword;
     private string _joinHost = string.Empty;
     private string _joinPassword = string.Empty;
@@ -123,11 +133,13 @@ internal sealed class MainForm : Form
         _cloudflaredRuntime = new CloudflaredRuntime();
         _tunnelHost = new WebSocketTunnelHost(_cloudflaredRuntime);
         _clientSession = new SyncplayClientSession(_runtime);
+        _isDarkTheme = AppTheme.LoadDarkPreference();
 
         Text = "MoStream TV";
+        Icon = BrandAssets.AppIcon;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(960, 760);
-        Size = new Size(1120, 880);
+        MinimumSize = new Size(960, 780);
+        Size = new Size(1120, 950);
         Font = new Font("Segoe UI", 10F);
         DoubleBuffered = true;
         AllowDrop = true;
@@ -139,6 +151,20 @@ internal sealed class MainForm : Form
         WireEvents();
         Controls.Add(BuildLayout());
         ApplyModeUi(focusServerField: false);
+        ApplyTheme();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyTheme();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _toolTip.Dispose();
+        base.Dispose(disposing);
     }
 
     private bool IsHostMode => _hostModeRadio.Checked;
@@ -146,6 +172,12 @@ internal sealed class MainForm : Form
 
     private void WireEvents()
     {
+        _themeToggleButton.Click += (_, _) =>
+        {
+            _isDarkTheme = !_isDarkTheme;
+            AppTheme.SaveDarkPreference(_isDarkTheme);
+            ApplyTheme();
+        };
         _hostModeRadio.CheckedChanged += ModeRadioOnCheckedChanged;
         _shareOverInternetCheckBox.CheckedChanged += (_, _) => ApplyModeUi(focusServerField: false);
         _serverHost.TextChanged += (_, _) => UpdatePortEnabledState();
@@ -183,7 +215,6 @@ internal sealed class MainForm : Form
             _watchPartyPanel.ApplyPlaylist(update));
         _clientSession.PlayerStateUpdated += (_, state) => SafeBeginInvoke(() =>
         {
-            _watchPartyPanel.ApplyPlayerState(state);
             if (!string.IsNullOrWhiteSpace(state.FilePath) && File.Exists(state.FilePath))
                 _mediaPath.Text = state.FilePath;
         });
@@ -201,12 +232,6 @@ internal sealed class MainForm : Form
         });
         _clientSession.ClientExited += ClientSessionOnClientExited;
 
-        _watchPartyPanel.PlayRequested += async (_, _) => await RunSessionCommandAsync(() => _clientSession.SetPausedAsync(false));
-        _watchPartyPanel.PauseRequested += async (_, _) => await RunSessionCommandAsync(() => _clientSession.SetPausedAsync(true));
-        _watchPartyPanel.SeekRequested += async (_, target) => await RunSessionCommandAsync(() => _clientSession.SeekAsync(target));
-        _watchPartyPanel.UndoSeekRequested += async (_, _) => await RunSessionCommandAsync(() => _clientSession.UndoSeekAsync());
-        _watchPartyPanel.OpenMovieRequested += (_, _) => BrowseAndOpenMovie();
-        _watchPartyPanel.OpenUrlRequested += async (_, url) => await RunSessionCommandAsync(() => _clientSession.OpenFileAsync(url));
         _watchPartyPanel.ChatSubmitted += async (_, text) => await RunSessionCommandAsync(() => _clientSession.SendChatAsync(text));
         _watchPartyPanel.JoinRoomRequested += async (_, room) => await RunSessionCommandAsync(() => _clientSession.SetRoomAsync(room));
         _watchPartyPanel.ReadyChanged += async (_, ready) => await RunSessionCommandAsync(() => _clientSession.SetReadyAsync(ready));
@@ -224,15 +249,18 @@ internal sealed class MainForm : Form
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(14),
+            Padding = new Padding(14, 10, 14, 14),
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        root.Controls.Add(BuildHeaderBar(), 0, 0);
 
         var topRow = new TableLayoutPanel
         {
@@ -249,21 +277,63 @@ internal sealed class MainForm : Form
         topRow.Controls.Add(BuildSetupGroup(), 0, 0);
         topRow.Controls.Add(BuildInviteGroup(), 1, 0);
 
-        root.Controls.Add(topRow, 0, 0);
-        root.Controls.Add(BuildActionButtons(), 0, 1);
+        root.Controls.Add(topRow, 0, 1);
+        root.Controls.Add(BuildActionButtons(), 0, 2);
 
         var statusPanel = new Panel { Dock = DockStyle.Fill, Height = 26, Padding = new Padding(3, 4, 3, 2) };
         statusPanel.Controls.Add(_status);
-        root.Controls.Add(statusPanel, 0, 2);
+        root.Controls.Add(statusPanel, 0, 3);
 
-        root.Controls.Add(BuildWatchPartyGroup(), 0, 3);
+        root.Controls.Add(BuildWatchPartyGroup(), 0, 4);
 
         return root;
     }
 
+    private Control BuildHeaderBar()
+    {
+        var header = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 34,
+            Margin = new Padding(0, 0, 0, 4),
+        };
+
+        var brandFlow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Left,
+            AutoSize = true,
+            WrapContents = false,
+            Margin = new Padding(0),
+            Padding = new Padding(0, 2, 0, 0),
+        };
+
+        var logoBox = new PictureBox
+        {
+            Image = BrandAssets.Logo32,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            Size = new Size(26, 26),
+            Margin = new Padding(2, 1, 8, 0),
+        };
+        var titleLabel = new Label
+        {
+            Text = "MoStream TV",
+            UseMnemonic = false,
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 11.5F),
+            Margin = new Padding(0, 3, 0, 0),
+        };
+
+        brandFlow.Controls.Add(logoBox);
+        brandFlow.Controls.Add(titleLabel);
+
+        header.Controls.Add(brandFlow);
+        header.Controls.Add(_themeToggleButton);
+        return header;
+    }
+
     private Control BuildSetupGroup()
     {
-        var group = new GroupBox
+        var group = new ThemedGroupBox
         {
             Text = "Watch party setup",
             Dock = DockStyle.Top,
@@ -405,7 +475,7 @@ internal sealed class MainForm : Form
 
     private Control BuildWatchPartyGroup()
     {
-        var group = new GroupBox
+        var group = new ThemedGroupBox
         {
             Text = "Watch party",
             Dock = DockStyle.Fill,
@@ -413,6 +483,14 @@ internal sealed class MainForm : Form
         };
         group.Controls.Add(_watchPartyPanel);
         return group;
+    }
+
+    private void ApplyTheme()
+    {
+        var palette = AppTheme.GetPalette(_isDarkTheme);
+        AppTheme.ApplyToForm(this, palette);
+        _watchPartyPanel.ApplyTheme(palette);
+        _toolTip.SetToolTip(_themeToggleButton, _isDarkTheme ? "Light theme" : "Dark theme");
     }
 
     private void ModeRadioOnCheckedChanged(object? sender, EventArgs eventArgs)
@@ -434,10 +512,13 @@ internal sealed class MainForm : Form
 
     private void ApplyModeUi(bool focusServerField)
     {
+        var palette = AppTheme.GetPalette(_isDarkTheme);
+
         if (IsHostMode)
         {
             _shareOverInternetCheckBox.Enabled = !IsSessionRunning;
-            _serverHost.Enabled = false;
+            _serverHost.ReadOnly = true;
+            _serverHost.TabStop = false;
             _serverHost.Text = _shareOverInternetCheckBox.Checked
                 ? HostInternetServerDisplayText
                 : HostLanServerDisplayText;
@@ -446,7 +527,7 @@ internal sealed class MainForm : Form
             _stopButton.Text = "Stop watch party";
             _inviteGroup.Text = "Invite friends";
             _inviteHintLabel.Text = _shareOverInternetCheckBox.Checked
-                ? "Send the wss:// link (no Hamachi needed), or LAN on the same Wi-Fi."
+                ? "Share the wss:// link over the Internet, or LAN on the same Wi-Fi."
                 : "LAN friends use this IP and port. Forward TCP port for direct Internet.";
             if (!IsSessionRunning)
                 _joinDetails.Text = IdleHostPlaceholder;
@@ -454,7 +535,8 @@ internal sealed class MainForm : Form
         else
         {
             _shareOverInternetCheckBox.Enabled = false;
-            _serverHost.Enabled = !IsSessionRunning;
+            _serverHost.ReadOnly = IsSessionRunning;
+            _serverHost.TabStop = !IsSessionRunning;
             _serverHost.Text = _joinHost;
             _pasteInviteButton.Enabled = !IsSessionRunning;
             _startButton.Text = "Join watch party";
@@ -463,10 +545,12 @@ internal sealed class MainForm : Form
             _inviteHintLabel.Text = "Paste the invite (wss://... or IP:port), room, and password, then click Join.";
             if (!IsSessionRunning)
                 _joinDetails.Text = IdleJoinPlaceholder;
-            if (focusServerField && _serverHost.Enabled)
+            if (focusServerField && !_serverHost.ReadOnly)
                 _serverHost.Focus();
         }
 
+        _serverHost.BackColor = _serverHost.ReadOnly ? palette.SurfaceBack : palette.InputBack;
+        _serverHost.ForeColor = _serverHost.ReadOnly && !_serverHost.TabStop ? palette.TextMuted : palette.TextPrimary;
         UpdatePortEnabledState();
     }
 
@@ -704,7 +788,7 @@ internal sealed class MainForm : Form
                 {
                     _watchPartyPanel.AppendInfoMessage(
                         DateTime.Now.ToString("HH:mm:ss"),
-                        $"Internet tunnel ready: {_tunnelHost.PublicWssUrl} (click Copy join details to share with friends; no Hamachi needed).");
+                        $"Internet tunnel ready: {_tunnelHost.PublicWssUrl} (click Copy join details to share with friends).");
                     _status.Text = "Watch party is running (Internet tunnel + LAN ready)";
                 }
                 else
@@ -888,7 +972,11 @@ internal sealed class MainForm : Form
         _hostModeRadio.Enabled = !running;
         _joinModeRadio.Enabled = !running;
         _shareOverInternetCheckBox.Enabled = !running && IsHostMode;
-        _serverHost.Enabled = !running && !IsHostMode;
+        _serverHost.ReadOnly = running || IsHostMode;
+        _serverHost.TabStop = !running && !IsHostMode;
+        var palette = AppTheme.GetPalette(_isDarkTheme);
+        _serverHost.BackColor = _serverHost.ReadOnly ? palette.SurfaceBack : palette.InputBack;
+        _serverHost.ForeColor = _serverHost.ReadOnly && !_serverHost.TabStop ? palette.TextMuted : palette.TextPrimary;
         _pasteInviteButton.Enabled = !running && !IsHostMode;
         _roomName.Enabled = !running;
         _hostName.Enabled = !running;

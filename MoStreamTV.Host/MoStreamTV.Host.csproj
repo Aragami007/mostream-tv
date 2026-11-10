@@ -7,10 +7,14 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MoStreamTV.Host</AssemblyName>
     <RootNamespace>MoStreamTV.Host</RootNamespace>
-    <Version>0.4.1</Version>
+    <Version>0.5.0</Version>
+    <ApplicationIcon>Assets\mostream.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets\mostream.ico" LogicalName="MoStreamTV.Host.Assets.mostream.ico" />
+    <EmbeddedResource Include="Assets\mostream-32.png" LogicalName="MoStreamTV.Host.Assets.mostream-32.png" />
+    <EmbeddedResource Include="Assets\mostream-16.png" LogicalName="MoStreamTV.Host.Assets.mostream-16.png" />
     <EmbeddedResource Include="Hosting\Bridge\consoleUI.py" LogicalName="MoStreamTV.Host.Bridge.consoleUI.py" />
     <Content Include="..\vendor\Syncplay_1.7.6_Portable.zip" Link="runtime\Syncplay_1.7.6_Portable.zip">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

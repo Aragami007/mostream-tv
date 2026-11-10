@@ -9,14 +9,14 @@ It does **not** upload or stream the movie file over the server. Every participa
 1. Download this repository using **Code → Download ZIP** and extract it.
 2. Run `dist\MoStreamTV.Host\MoStreamTV.Host.exe`, or double-click `RUN_MOSTREAM_TV.bat`.
 3. **To host a watch party:**
-   - Keep **Mode** on **Host watch party** and keep **Share over Internet (no Hamachi / no router setup)** checked (or uncheck it for same-Wi-Fi/LAN-only hosting).
+   - Keep **Mode** on **Host watch party** and keep **Share over Internet** checked (or uncheck it for same-Wi-Fi/LAN-only hosting).
    - Choose a room name, display name, password, TCP port, media player (VLC, mpv, mpv.net, MPC-HC, or MPC-BE), and optionally a movie file.
    - Click **Start watch party** and share the generated `wss://...` invite details (and optional `LAN:` IP) with friends using **Copy join details**.
 4. **To join a friend's watch party:**
    - Select **Join watch party** under **Mode**.
-   - Click **Paste invite** after copying your friend's invite details (or enter the `wss://...` link or `IP:port`, **Room name**, **Your name**, and **Password**). Friends joining a `wss://...` tunnel link do not need Hamachi or `cloudflared`.
+   - Click **Paste invite** after copying your friend's invite details (or enter the `wss://...` link or `IP:port`, **Room name**, **Your name**, and **Password**).
    - Click **Join watch party**.
-5. Add, switch, or queue movies and stream URLs directly inside MoStream TV at any time (via **Choose movie...**, **Open movie...**, **Add file(s)...**, or drag-and-drop).
+5. Chat, view room activity, toggle readiness, and manage the shared playlist directly inside MoStream TV at any time (via **Choose movie...**, **Add file(s)...**, **Add URL...**, or drag-and-drop), or switch between Light and Dark themes from the top-right header icon.
 
 The first launch extracts and prepares the bundled watch-party runtime (and, on host computers using the built-in Internet tunnel for the first time, downloads the official `cloudflared.exe` helper once) in:
 
@@ -30,9 +30,9 @@ This is an unsigned development build, so Windows may identify it as an unrecogn
 
 ## Network requirements
 
-### Friends over the Internet (no Hamachi or port forwarding)
+### Friends over the Internet
 
-With **Share over Internet (no Hamachi / no router setup)** enabled, MoStream TV opens a temporary encrypted `wss://*.trycloudflare.com` WebSocket tunnel bridged cleanly to your private watch-party server. Friends select **Join watch party**, paste the invite link, and connect directly—even behind CGNAT or double-NAT routers, without Hamachi or router changes.
+With **Share over Internet** enabled, MoStream TV opens a temporary encrypted `wss://*.trycloudflare.com` WebSocket tunnel bridged cleanly to your private watch-party server. Friends select **Join watch party**, paste the invite link, and connect directly—even behind CGNAT or double-NAT routers.
 
 ### Friends on the same Wi-Fi or LAN
 

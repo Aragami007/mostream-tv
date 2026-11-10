@@ -47,6 +47,6 @@ Starts `SyncplayConsole.exe --no-gui` with `MOSTREAM_BRIDGE=1` pointing to `127.
 
 Selects a usable private IPv4 address for same-LAN connection instructions, prioritizing physical Wi-Fi/Ethernet adapters (`192.168.*`, `10.*`, `172.16-31.*`) above virtual VPN/tunnel interfaces such as Hamachi or Hyper-V.
 
-### `MainForm` and `WatchPartyPanel`
+### `MainForm`, `WatchPartyPanel`, and `AppTheme`
 
-Own native Windows Forms presentation and user interaction: Host/Join mode switching, friend server entry and clipboard invite parsing (`Paste invite`), movie selection (before or during a session, including drag-and-drop), playback controls, activity/chat log, room & participant list, readiness/auto-play toggles, and shared playlist management.
+Own native Windows Forms presentation, Light/Dark theming, and user interaction: Host/Join mode switching, friend server entry and clipboard invite parsing (`Paste invite`), movie selection (before or during a session, including drag-and-drop), separated **Chat** and **Activity log** panels, room & participant list, readiness/auto-play toggles, and shared playlist management.

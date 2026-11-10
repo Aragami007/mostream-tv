@@ -2,6 +2,16 @@
 
 All notable changes to MoStream TV are documented here.
 
+## 0.5.0 - 2026-11-11
+
+### Changed
+
+- Removed the inline playback transport bar (`Play`, `Pause`, `Seek`, `Undo`, `Open movie`, `Open URL`) and instructional status banner from the **Watch party** panel.
+- Separated **Chat** and **Activity log** into dedicated stacked panels so viewer conversation and sync/room events remain easy to follow independently.
+- Removed unnecessary "no Hamachi needed" / "no router setup" promotional wording from the application UI.
+- Applied custom MoStream TV branding (`Assets\mostream.ico` and `Assets\mostream-32.png` / `Assets\mostream-16.png`) across the window icon, header bar, dialogs, and compiled executable.
+- Added Light and Dark themes (`AppTheme`) persisted across launches, toggled via a subtle icon-only button in the top-right header bar.
+
 ## 0.4.1 - 2026-11-11
 
 ### Fixed
