@@ -1,17 +1,22 @@
 # MoStream TV
 
-MoStream TV is a Windows desktop application for private, self-hosted watch parties. Everything happens inside one MoStream TV window: configure your room and movie, launch the private server and your local media player, share connection details with friends, and manage playback, readiness, participants, chat, and the shared playlist together.
+MoStream TV is a Windows desktop application for private, self-hosted watch parties. Everything happens inside one MoStream TV window—both for hosting a party and joining a friend's party.
 
 It does **not** upload or stream the movie file over the server. Every participant plays their own local copy or accessible stream while MoStream TV coordinates pause, seek, and playback position.
 
-## Download and test
+## Host or join a watch party
 
 1. Download this repository using **Code → Download ZIP** and extract it.
 2. Run `dist\MoStreamTV.Host\MoStreamTV.Host.exe`, or double-click `RUN_MOSTREAM_TV.bat`.
-3. Choose a room name, display name, password, TCP port, media player (VLC, mpv, mpv.net, MPC-HC, or MPC-BE), and optionally a starting movie file.
-4. Select **Start watch party**.
-5. Send your friends the displayed server address, room, and password, or click **Copy join details**.
-6. Add, switch, or queue movies and stream URLs directly inside MoStream TV at any time (via **Choose movie...**, **Open movie...**, **Add file(s)...**, or drag-and-drop).
+3. **To host a watch party:**
+   - Keep **Mode** on **Host watch party**.
+   - Choose a room name, display name, password, TCP port, media player (VLC, mpv, mpv.net, MPC-HC, or MPC-BE), and optionally a movie file.
+   - Click **Start watch party** and share the displayed connection details with friends (or click **Copy join details**).
+4. **To join a friend's watch party:**
+   - Select **Join watch party** under **Mode**.
+   - Enter your friend's **Server address**, **TCP port**, **Room name**, **Your name**, and **Password** (or click **Paste invite** after copying your friend's invite text).
+   - Click **Join watch party**.
+5. Add, switch, or queue movies and stream URLs directly inside MoStream TV at any time (via **Choose movie...**, **Open movie...**, **Add file(s)...**, or drag-and-drop).
 
 The first launch extracts and prepares the bundled watch-party runtime in:
 
@@ -37,7 +42,7 @@ The current release does not automate router configuration, firewall rules, dyna
 
 ## What happens when the app closes?
 
-The private server, headless watch-party engine, and launched media player session are managed by MoStream TV and shut down cleanly when you click **Stop watch party** or close the MoStream TV window.
+The private server (when hosting), headless watch-party engine, and launched media player session are managed by MoStream TV and shut down cleanly when you stop/leave the watch party or close the MoStream TV window.
 
 ## Build from source
 

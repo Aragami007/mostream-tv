@@ -1,6 +1,6 @@
-# MoStream TV Host
+# MoStream TV
 
-MoStream TV starts a private watch-party server on this Windows computer, integrates playback, chat, room/participant status, readiness, and shared playlist controls directly into the MoStream TV window, displays connection details for friends, and shuts down the session cleanly when stopped or closed.
+MoStream TV starts a private watch-party server on this Windows computer (in Host mode) or connects directly to a friend's server (in Join mode), integrating playback, chat, room/participant status, readiness, and shared playlist controls inside the single MoStream TV window.
 
 ## Run from source
 
@@ -14,7 +14,7 @@ The project bundles the official Syncplay 1.7.6 portable package and prepares it
 
 ## Connecting friends
 
-- Same Wi-Fi/LAN: friends enter the displayed `IP:port`, room name, and password.
+- Same Wi-Fi/LAN: friends select **Join watch party**, enter the displayed `IP:port`, room name, and password (or click **Paste invite**).
 - Over the Internet: forward the displayed TCP port in the router to the host computer and allow the application through Windows Firewall. Friends use the host's public IP address and port.
 - No media is uploaded by MoStream TV. Each viewer needs their own local copy or accessible stream.
 

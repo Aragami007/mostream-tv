@@ -2,6 +2,14 @@
 
 All notable changes to MoStream TV are documented here.
 
+## 0.3.0 - 2026-11-11
+
+### Added
+
+- **Join watch party** mode inside MoStream TV with fields for friend's server address (supports `host` or `host:port`), TCP port, room name, display name, and optional password.
+- **Paste invite** helper to auto-fill server, port, room, and password from a friend's copied join details.
+- Immediate error reporting and cleanup when joining with an incorrect password or unreachable server.
+
 ## 0.2.0 - 2026-11-10
 
 ### Changed

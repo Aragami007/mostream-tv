@@ -74,6 +74,7 @@ internal sealed class SyncplayRuntime
             : string.Empty;
         var updated = UpsertIniValue(contents, "client_settings", "forceguiprompt", "False");
         updated = UpsertIniValue(updated, "general", "checkforupdatesautomatically", "False");
+        updated = UpsertIniValue(updated, "server_data", "password", string.Empty);
         if (!string.Equals(contents, updated, StringComparison.Ordinal))
             await File.WriteAllTextAsync(configPath, updated, cancellationToken);
 

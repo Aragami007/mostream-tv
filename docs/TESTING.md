@@ -16,23 +16,18 @@ To build the same friend-ready ZIP used for releases:
 
 ## Local smoke test
 
-The 0.2.0 verification performed on Windows checked:
+The 0.3.0 verification performed on Windows checked:
 
-- Release compilation and publish (`dist\MoStreamTV.Host`) with zero errors.
-- Startup of `syncplayServer.exe` bound to localhost on a test TCP port.
-- Startup of `SyncplayClientSession` via `SyncplayConsole.exe --no-gui` with `MOSTREAM_BRIDGE=1` and a real `vlc.exe` media player without launching any separate Syncplay GUI window.
-- Adding files to the shared playlist, switching playlist items, toggling readiness, sending chat messages, and toggling playback state.
-- Clean teardown of `vlc.exe`, `SyncplayConsole.exe`, and `syncplayServer.exe` on stop.
-- Visual layout and control-bounds verification of `MainForm` and `WatchPartyPanel`.
+- Release compilation, publish (`dist\MoStreamTV.Host`), and release archive build (`Build-Release.ps1`) with zero errors.
+- Host + Join two-client end-to-end test: started `SyncplayHost` + Host `SyncplayClientSession` (`WatchPartyMode.Host`) + Friend `SyncplayClientSession` (`WatchPartyMode.Join`) connecting with `vlc.exe`, verifying multi-user room presence, bidirectional chat, and clean shutdown of all processes.
+- Wrong-password rejection test in `WatchPartyMode.Join`, verifying immediate failure reporting without hanging.
+- Visual layout and control-bounds verification of `MainForm` in both Host and Join modes.
 
 ## Manual acceptance test
 
-1. Launch `MoStreamTV.Host.exe` (or `RUN_MOSTREAM_TV.bat`).
-2. Confirm your media player is detected (or choose one) and optionally pick a movie file.
-3. Click **Start watch party** and confirm no separate Syncplay window opens.
-4. Confirm the status changes to running, join details appear, and your media player opens.
-5. Add or change movie files from within MoStream TV (via **Choose movie...**, **Open movie...**, **Add file(s)...**, or drag-and-drop).
-6. Connect a second computer on the same LAN using the displayed details and verify pause, unpause, seeking, readiness, chat, and playlist sync work in both directions.
-7. Click **Stop watch party** or close MoStream TV and verify the session and private server stop cleanly.
+1. Host starts a watch party on Computer A and clicks **Copy join details**.
+2. Friend opens MoStream TV on Computer B, switches Mode to **Join watch party**, clicks **Paste invite** (or fills **Server address**, **TCP port**, **Room name**, and **Password**), selects a local movie/player, and clicks **Join watch party**.
+3. Confirm both viewers appear in **Room & participants**, chat works in both directions, and play/pause/seeking/playlist switches stay synchronized.
+4. Click **Leave watch party** on Computer B and **Stop watch party** on Computer A to confirm clean teardown.
 
 Do not use a public production port for smoke testing.

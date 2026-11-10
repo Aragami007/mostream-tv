@@ -6,13 +6,15 @@ internal sealed class WatchPartyPanel : Panel
 {
     private const int MaxLogLines = 400;
 
+    private const string IdleNowPlayingText = "Start or join a watch party above to open your media player and sync playback here.";
+
     private readonly Label _nowPlayingLabel = new()
     {
         AutoEllipsis = true,
         Dock = DockStyle.Fill,
         TextAlign = ContentAlignment.MiddleLeft,
         Font = new Font("Segoe UI Semibold", 9.5F),
-        Text = "Start the watch party above to open your media player and sync playback here.",
+        Text = IdleNowPlayingText,
     };
 
     private readonly Button _playButton = new() { Text = "Play", Width = 64, Height = 28 };
@@ -179,7 +181,7 @@ internal sealed class WatchPartyPanel : Panel
         if (!active)
         {
             _currentMovieName = null;
-            _nowPlayingLabel.Text = "Start the watch party above to open your media player and sync playback here.";
+            _nowPlayingLabel.Text = IdleNowPlayingText;
             _userList.Items.Clear();
             _userList.Groups.Clear();
             _playlistView.Items.Clear();

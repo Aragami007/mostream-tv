@@ -343,6 +343,7 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
         self._last_player_snapshot = None
         self._file_switch_wrapped = False
         self._shutting_down = False
+        self._connected_once = False
 
     def _emit(self, payload):
         line = BRIDGE_PREFIX + json.dumps(payload, ensure_ascii=False)
@@ -455,6 +456,7 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
         return ""
 
     def setFeatures(self, featureList):
+        self._connected_once = True
         if self._syncplayClient:
             self._emit({
                 "type": "connected",
@@ -645,12 +647,24 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
                 "timestamp": time.strftime("%H:%M:%S", time.localtime()),
             })
             return
+        is_fatal_auth_or_connect = (not self._connected_once) and (
+            clean in (
+                getMessage("password-required-server-error"),
+                getMessage("wrong-password-server-error"),
+                getMessage("connection-failed-notification"),
+                getMessage("version-mismatch-error").strip(),
+            )
+            or "password" in clean.lower()
+        )
         self._emit({
             "type": "error",
             "text": clean,
-            "critical": bool(criticalerror),
+            "critical": bool(criticalerror or is_fatal_auth_or_connect),
             "timestamp": time.strftime("%H:%M:%S", time.localtime()),
         })
+        if is_fatal_auth_or_connect and self._syncplayClient:
+            self._shutting_down = True
+            reactor.callLater(0.05, self._syncplayClient.stop, False)
 
     def _open_file_when_ready(self, path, reset_position, add_to_playlist):
         client = self._syncplayClient

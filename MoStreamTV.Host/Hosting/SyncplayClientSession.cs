@@ -119,13 +119,16 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
 
         startInfo.ArgumentList.Add("--no-gui");
         startInfo.ArgumentList.Add("--host");
-        startInfo.ArgumentList.Add($"127.0.0.1:{configuration.Port}");
+        startInfo.ArgumentList.Add(configuration.FormatTargetEndpoint());
         startInfo.ArgumentList.Add("--name");
         startInfo.ArgumentList.Add(configuration.HostName);
         startInfo.ArgumentList.Add("--room");
         startInfo.ArgumentList.Add(configuration.RoomName);
-        startInfo.ArgumentList.Add("--password");
-        startInfo.ArgumentList.Add(configuration.Password);
+        if (!string.IsNullOrEmpty(configuration.Password))
+        {
+            startInfo.ArgumentList.Add("--password");
+            startInfo.ArgumentList.Add(configuration.Password);
+        }
         startInfo.ArgumentList.Add("--player-path");
         startInfo.ArgumentList.Add(configuration.PlayerPath);
         startInfo.ArgumentList.Add("--no-store");
@@ -153,7 +156,10 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(20));
             using var registration = timeoutCts.Token.Register(() =>
-                connectTcs.TrySetException(new TimeoutException("Timed out connecting to the watch party.")));
+                connectTcs.TrySetException(new TimeoutException(
+                    configuration.IsHost
+                        ? "Timed out connecting to the local watch party."
+                        : $"Timed out connecting to {configuration.FormatTargetEndpoint()}. Check the server address, port, and firewall.")));
 
             await connectTcs.Task;
         }

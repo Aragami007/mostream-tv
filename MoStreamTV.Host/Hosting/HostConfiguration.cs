@@ -1,6 +1,17 @@
+using System.Net;
+using System.Net.Sockets;
+
 namespace MoStreamTV.Host.Hosting;
 
+internal enum WatchPartyMode
+{
+    Host = 0,
+    Join = 1,
+}
+
 internal sealed record HostConfiguration(
+    WatchPartyMode Mode,
+    string ServerHost,
     string RoomName,
     string HostName,
     string Password,
@@ -27,16 +38,64 @@ internal sealed record HostConfiguration(
         "memento.exe",
     };
 
+    public bool IsHost => Mode == WatchPartyMode.Host;
+
+    public string EffectiveHost
+    {
+        get
+        {
+            if (IsHost)
+                return "127.0.0.1";
+            var (host, _) = SplitHostAndPort(ServerHost, Port);
+            return host;
+        }
+    }
+
+    public int EffectivePort
+    {
+        get
+        {
+            if (IsHost)
+                return Port;
+            var (_, parsedPort) = SplitHostAndPort(ServerHost, Port);
+            return parsedPort;
+        }
+    }
+
+    public string FormatTargetEndpoint()
+    {
+        var host = EffectiveHost;
+        var port = EffectivePort;
+        if (IPAddress.TryParse(host, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6 && !host.StartsWith('['))
+            return $"[{host}]:{port}";
+        return $"{host}:{port}";
+    }
+
     public void Validate()
     {
+        if (!IsHost)
+        {
+            if (string.IsNullOrWhiteSpace(ServerHost))
+                throw new ArgumentException("Enter your friend's server IP address or hostname.", nameof(ServerHost));
+
+            var (host, port) = SplitHostAndPort(ServerHost, Port);
+            if (string.IsNullOrWhiteSpace(host))
+                throw new ArgumentException("Enter a valid server address.", nameof(ServerHost));
+            if (port is < 1024 or > 65535)
+                throw new ArgumentOutOfRangeException(nameof(Port), "Choose a port from 1024 to 65535.");
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(Password))
+                throw new ArgumentException("Enter a server password.", nameof(Password));
+            if (Port is < 1024 or > 65535)
+                throw new ArgumentOutOfRangeException(nameof(Port), "Choose a port from 1024 to 65535.");
+        }
+
         if (string.IsNullOrWhiteSpace(RoomName))
             throw new ArgumentException("Enter a room name.", nameof(RoomName));
         if (string.IsNullOrWhiteSpace(HostName))
             throw new ArgumentException("Enter your display name.", nameof(HostName));
-        if (string.IsNullOrWhiteSpace(Password))
-            throw new ArgumentException("Enter a server password.", nameof(Password));
-        if (Port is < 1024 or > 65535)
-            throw new ArgumentOutOfRangeException(nameof(Port), "Choose a port from 1024 to 65535.");
 
         if (!string.IsNullOrWhiteSpace(MediaPath) && !File.Exists(MediaPath))
             throw new FileNotFoundException("The selected movie could not be found.", MediaPath);
@@ -54,6 +113,40 @@ internal sealed record HostConfiguration(
 
         if (playerExecutable.StartsWith("mplayer", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(MediaPath))
             throw new ArgumentException("MPlayer requires choosing a movie file before starting.", nameof(MediaPath));
+    }
+
+    public static (string Host, int Port) SplitHostAndPort(string rawHost, int fallbackPort)
+    {
+        var trimmed = rawHost.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return (string.Empty, fallbackPort);
+
+        if (trimmed.StartsWith('['))
+        {
+            var closeIndex = trimmed.IndexOf(']');
+            if (closeIndex > 1)
+            {
+                var ipv6 = trimmed[1..closeIndex];
+                if (closeIndex + 1 < trimmed.Length && trimmed[closeIndex + 1] == ':'
+                    && int.TryParse(trimmed[(closeIndex + 2)..], out var parsedV6Port))
+                {
+                    return (ipv6, parsedV6Port);
+                }
+                return (ipv6, fallbackPort);
+            }
+        }
+
+        var firstColon = trimmed.IndexOf(':');
+        var lastColon = trimmed.LastIndexOf(':');
+        if (firstColon > 0 && firstColon == lastColon)
+        {
+            var hostPart = trimmed[..lastColon].Trim();
+            var portPart = trimmed[(lastColon + 1)..].Trim();
+            if (int.TryParse(portPart, out var parsedPort))
+                return (hostPart, parsedPort);
+        }
+
+        return (trimmed, fallbackPort);
     }
 
     public static string FindDefaultMediaPlayer()
