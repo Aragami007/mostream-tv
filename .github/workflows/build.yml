@@ -14,15 +14,15 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
       - name: Build
         run: dotnet build .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release
       - name: Publish
         run: dotnet publish .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release --no-build -o .\publish
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MoStreamTV.Host-windows
           path: publish/
