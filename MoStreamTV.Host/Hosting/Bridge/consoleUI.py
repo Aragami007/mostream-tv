@@ -407,6 +407,7 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
         super(MoStreamBridgeUI, self).addClient(client)
         self._wrap_file_switch()
         self._wrap_player_guards(client)
+        self._wrap_seek_stability(client)
         if client._config.get("file"):
             self._register_local_path(client._config["file"])
         client.addPlayerReadyCallback(self._on_player_ready)
@@ -449,7 +450,141 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
 
             chat_owner.showChatMessage = guarded_chat
 
+    def _wrap_seek_stability(self, client):
+        if getattr(client, "_mostream_seek_guards", False):
+            return
+        client._mostream_seek_guards = True
+        client._mostream_in_remote_sync = False
+        client._mostream_local_seek_until = 0.0
+
+        orig_update_global = client._changePlayerStateAccordingToGlobalState
+
+        def guarded_update_global(position, paused, doSeek, setBy):
+            if doSeek and setBy and setBy != client.getUsername():
+                client._mostream_local_seek_until = 0.0
+
+            suppress_bounce = (
+                not doSeek
+                and time.time() < getattr(client, "_mostream_local_seek_until", 0.0)
+                and setBy != client.getUsername()
+            )
+            prev_in_sync = client._mostream_in_remote_sync
+            client._mostream_in_remote_sync = True
+            if suppress_bounce:
+                saved_rewind = client._config.get("rewindOnDesync", True)
+                saved_slow = client._config.get("slowOnDesync", True)
+                client._config["rewindOnDesync"] = False
+                client._config["slowOnDesync"] = False
+                try:
+                    return orig_update_global(position, paused, doSeek, setBy)
+                finally:
+                    client._config["rewindOnDesync"] = saved_rewind
+                    client._config["slowOnDesync"] = saved_slow
+                    client._mostream_in_remote_sync = prev_in_sync
+            try:
+                return orig_update_global(position, paused, doSeek, setBy)
+            finally:
+                client._mostream_in_remote_sync = prev_in_sync
+
+        client._changePlayerStateAccordingToGlobalState = guarded_update_global
+
+        orig_set_position = client.setPosition
+
+        def guarded_set_position(position):
+            if client.lastRewindTime is not None and abs(time.time() - client.lastRewindTime) < 1.0 and position > 5:
+                return orig_set_position(position)
+
+            player = getattr(client, "_player", None)
+            pre_player_pos = None
+            if player is not None and hasattr(player, "_position"):
+                try:
+                    pre_player_pos = float(player._position)
+                except (TypeError, ValueError):
+                    pre_player_pos = None
+
+            orig_set_position(position)
+
+            target_global = max(0.0, float(position))
+            target_player = max(0.0, float(position) + client.getUserOffset())
+            if not client._mostream_in_remote_sync:
+                client._mostream_local_seek_until = time.time() + 4.5
+            elif client.userlist.currentUser.file:
+                # Reflect incoming remote seek immediately so handleState() does not echo
+                # the stale pre-seek position alongside its ignoringOnTheFly ack.
+                client._playerPosition = target_global
+
+            if player is not None and client.userlist.currentUser.file:
+                if hasattr(player, "_position"):
+                    player._position = target_player
+                if hasattr(player, "_previousPosition"):
+                    player._previousPosition = -1
+                if hasattr(player, "_previousPreviousPosition"):
+                    player._previousPreviousPosition = -2
+                if hasattr(player, "_lastVLCPositionUpdate"):
+                    player._lastVLCPositionUpdate = time.time()
+                if pre_player_pos is not None and abs(target_player - pre_player_pos) > 2.0:
+                    player._mostream_pending_seek = (target_player, pre_player_pos, time.time() + 2.5)
+                else:
+                    player._mostream_pending_seek = None
+
+        client.setPosition = guarded_set_position
+
+        orig_update_player_status = client.updatePlayerStatus
+
+        def guarded_update_player_status(paused, position):
+            if position is not None:
+                adjusted = float(position) - client.getUserOffset()
+                _, seeked = client._determinePlayerStateChange(paused, adjusted)
+                if (
+                    seeked
+                    and client._lastGlobalUpdate
+                    and client._protocol
+                    and not client.recentlyRewound()
+                    and not client._recentlyAdvanced()
+                ):
+                    client._mostream_local_seek_until = time.time() + 4.5
+            return orig_update_player_status(paused, position)
+
+        client.updatePlayerStatus = guarded_update_player_status
+
+    def _wrap_vlc_seek_filter(self, player):
+        if player is None or getattr(player, "_mostream_vlc_seek_filter", False):
+            return
+        if not (hasattr(player, "lineReceived") and hasattr(player, "RE_ANSWER") and hasattr(player, "_positionAsk")):
+            return
+        player._mostream_vlc_seek_filter = True
+
+        orig_line_received = player.lineReceived
+
+        def guarded_line_received(data):
+            pending = getattr(player, "_mostream_pending_seek", None)
+            if pending is not None:
+                target_pos, pre_pos, deadline = pending
+                if time.time() > deadline:
+                    player._mostream_pending_seek = None
+                else:
+                    try:
+                        text = data.decode("utf-8", errors="ignore") if isinstance(data, (bytes, bytearray)) else str(data)
+                        match = player.RE_ANSWER.match(text)
+                        if match and match.group("command") == "position":
+                            arg = match.group("argument")
+                            if arg != "no-input" and not getattr(player, "_filechanged", False):
+                                reported = float(arg.replace(",", "."))
+                                moved_from_old = abs(reported - pre_pos) > 2.0
+                                near_target = abs(reported - target_pos) <= 3.5
+                                if not moved_from_old and not near_target:
+                                    player._lastVLCPositionUpdate = time.time()
+                                    player._positionAsk.set()
+                                    return
+                                player._mostream_pending_seek = None
+                    except Exception:
+                        player._mostream_pending_seek = None
+            return orig_line_received(data)
+
+        player.lineReceived = guarded_line_received
+
     def _on_player_ready(self, player):
+        self._wrap_vlc_seek_filter(player)
         self._player_ready = True
         self._emit({"type": "player_ready"})
         if self._poll_loop is None:

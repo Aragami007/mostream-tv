@@ -2,6 +2,15 @@
 
 All notable changes to MoStream TV are documented here.
 
+## 0.4.1 - 2026-11-11
+
+### Fixed
+
+- Fixed forward seeks reverting to the pre-seek timestamp (`Rewinded due to time difference`) when watching MP4 files in VLC over an Internet tunnel:
+  - Updated `consoleUI.py` so incoming remote seeks update Syncplay's cached player position immediately instead of echoing the stale pre-seek position alongside the `ignoringOnTheFly` server acknowledgment while VLC is still seeking asynchronously.
+  - Filtered transient stale pre-seek `position` replies from VLC's Lua interface until VLC finishes jumping near the commanded target (or times out).
+  - Suppressed spurious non-seek desync rewinds/slowdowns for a brief settle window immediately after the local viewer initiates a seek, while preserving incoming remote seeks and post-settle drift correction.
+
 ## 0.4.0 - 2026-11-11
 
 ### Added
