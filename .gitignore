@@ -1,0 +1,21 @@
+# Upstream reference clone and reverse-engineering artifacts
+/syncplay/
+
+# .NET build intermediates
+**/bin/
+**/obj/
+
+# Published runtime is available once in vendor/ inside the repository.
+# Release archives still include it beside the executable.
+/dist/MoStreamTV.Host/runtime/
+/dist/**/*.pdb
+
+# IDE and user-local files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local packages and logs
+/artifacts/
+*.log

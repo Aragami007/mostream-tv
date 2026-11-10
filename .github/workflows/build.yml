@@ -1,0 +1,29 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build
+        run: dotnet build .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release
+      - name: Publish
+        run: dotnet publish .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release --no-build -o .\publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MoStreamTV.Host-windows
+          path: publish/
+          if-no-files-found: error
