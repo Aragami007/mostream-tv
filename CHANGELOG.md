@@ -2,6 +2,13 @@
 
 All notable changes to MoStream TV are documented here.
 
+## 0.5.1 - 2026-11-11
+
+### Fixed
+
+- Completed Dark theme coverage across all controls in both idle and active states (`ThemedListView` for **Room & participants** and **Shared playlist**, `ThemedComboBox` for room selection and dropdown button, `ThemedNumericUpDown` for **TCP port** and **Min** spin buttons/text, `ThemedCheckButton` for **I'm ready to watch!**, and read-only locked inputs in `_chatInput` and `MainForm` when inactive/running).
+- Fixed text warping, bottom clipping, and horizontal truncation on `Choose movie...`, `Choose player...`, and other compact buttons at 125%+ Windows DPI by custom-painting centered single-line button captions in Dark Mode (`AppTheme.DrawButtonFace`), scaling control/button sizes from actual font metrics (`AppTheme.Scale`, `RecommendedInputHeight`, `MeasureButtonWidth`), switching setup label columns and rows to `AutoSize`, and aligning readiness row controls cleanly on a single centerline.
+
 ## 0.5.0 - 2026-11-11
 
 ### Changed

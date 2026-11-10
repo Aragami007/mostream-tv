@@ -48,50 +48,49 @@ internal sealed class MainForm : Form
 
     private readonly TextBox _serverHost = new()
     {
-        Dock = DockStyle.Fill,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
         ReadOnly = true,
         TabStop = false,
         Text = HostInternetServerDisplayText,
         PlaceholderText = "Friend's invite link (wss://...) or IP (e.g. 192.168.1.25:8999)",
     };
-    private readonly Button _pasteInviteButton = new ThemedButton
+    private readonly ThemedButton _pasteInviteButton = new()
     {
         Text = "Paste invite",
-        Height = 30,
-        Dock = DockStyle.Fill,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
         Enabled = false,
     };
 
-    private readonly TextBox _roomName = new() { Text = "Movie Night", Dock = DockStyle.Fill };
-    private readonly TextBox _hostName = new() { Text = Environment.UserName, Dock = DockStyle.Fill };
-    private readonly TextBox _password = new() { UseSystemPasswordChar = true, Dock = DockStyle.Fill };
-    private readonly CheckBox _showPasswordCheckBox = new() { Text = "Show", AutoSize = true, Anchor = AnchorStyles.Left };
-    private readonly NumericUpDown _port = new() { Minimum = 1024, Maximum = 65535, Value = 8999, Dock = DockStyle.Fill };
+    private readonly TextBox _roomName = new() { Text = "Movie Night", Anchor = AnchorStyles.Left | AnchorStyles.Right };
+    private readonly TextBox _hostName = new() { Text = Environment.UserName, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+    private readonly TextBox _password = new() { UseSystemPasswordChar = true, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+    private readonly CheckBox _showPasswordCheckBox = new() { Text = "Show", UseMnemonic = false, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(8, 0, 0, 0) };
+    private readonly ThemedNumericUpDown _port = new() { Minimum = 1024, Maximum = 65535, Value = 8999, Anchor = AnchorStyles.Left | AnchorStyles.Right };
     private readonly TextBox _mediaPath = new()
     {
         ReadOnly = true,
-        Dock = DockStyle.Fill,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
         PlaceholderText = "Choose a movie file (or add one after starting)",
     };
-    private readonly Button _browseButton = new ThemedButton { Text = "Choose movie...", Height = 30, Dock = DockStyle.Fill };
+    private readonly ThemedButton _browseButton = new() { Text = "Choose movie...", Anchor = AnchorStyles.Left | AnchorStyles.Right };
     private readonly TextBox _playerPath = new()
     {
         ReadOnly = true,
-        Dock = DockStyle.Fill,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
         PlaceholderText = "Choose VLC, mpv, mpv.net, MPC-HC, or MPC-BE",
     };
-    private readonly Button _browsePlayerButton = new ThemedButton { Text = "Choose player...", Height = 30, Dock = DockStyle.Fill };
+    private readonly ThemedButton _browsePlayerButton = new() { Text = "Choose player...", Anchor = AnchorStyles.Left | AnchorStyles.Right };
 
-    private readonly Button _startButton = new ThemedButton { Text = "Start watch party", Height = 38, Dock = DockStyle.Fill };
-    private readonly Button _stopButton = new ThemedButton { Text = "Stop watch party", Height = 38, Dock = DockStyle.Fill, Enabled = false };
-    private readonly Button _copyButton = new ThemedButton { Text = "Copy join details", Height = 38, Dock = DockStyle.Fill, Enabled = false };
-    private readonly Label _status = new() { Text = "Watch party is off", AutoSize = true, Font = new Font("Segoe UI Semibold", 10F) };
+    private readonly ThemedButton _startButton = new() { Text = "Start watch party", Dock = DockStyle.Fill };
+    private readonly ThemedButton _stopButton = new() { Text = "Stop watch party", Dock = DockStyle.Fill, Enabled = false };
+    private readonly ThemedButton _copyButton = new() { Text = "Copy join details", Dock = DockStyle.Fill, Enabled = false };
+    private readonly Label _status = new() { Text = "Watch party is off", UseMnemonic = false, AutoSize = true, Anchor = AnchorStyles.Left, Font = new Font("Segoe UI Semibold", 10F) };
     private readonly ThemedGroupBox _inviteGroup = new()
     {
         Text = "Invite friends",
         Dock = DockStyle.Fill,
         Margin = new Padding(10, 3, 3, 3),
-        Padding = new Padding(10, 20, 10, 10),
+        Padding = new Padding(10, 22, 10, 10),
     };
     private readonly TextBox _joinDetails = new()
     {
@@ -103,12 +102,12 @@ internal sealed class MainForm : Form
     };
     private readonly Label _inviteHintLabel = new()
     {
-        Dock = DockStyle.Top,
-        AutoSize = false,
-        Height = 52,
+        Dock = DockStyle.Fill,
+        AutoSize = true,
+        UseMnemonic = false,
         Tag = "muted",
         ForeColor = SystemColors.GrayText,
-        Padding = new Padding(0, 4, 0, 0),
+        Padding = new Padding(0, 6, 0, 0),
     };
 
     private readonly WatchPartyPanel _watchPartyPanel = new();
@@ -126,6 +125,10 @@ internal sealed class MainForm : Form
     private bool _closing;
     private bool _stopping;
 
+    private PictureBox? _logoBox;
+    private ThemedGroupBox? _setupGroup;
+    private ThemedGroupBox? _watchPartyGroup;
+
     public MainForm()
     {
         _runtime = new SyncplayRuntime();
@@ -138,11 +141,13 @@ internal sealed class MainForm : Form
         Text = "MoStream TV";
         Icon = BrandAssets.AppIcon;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(960, 780);
-        Size = new Size(1120, 950);
         Font = new Font("Segoe UI", 10F);
         DoubleBuffered = true;
         AllowDrop = true;
+
+        var workingArea = Screen.FromControl(this).WorkingArea;
+        MinimumSize = new Size(Math.Min(workingArea.Width - 40, AppTheme.Scale(this, 940)), Math.Min(workingArea.Height - 40, AppTheme.Scale(this, 760)));
+        Size = new Size(Math.Min(workingArea.Width - 20, AppTheme.Scale(this, 1140)), Math.Min(workingArea.Height - 20, AppTheme.Scale(this, 950)));
 
         _hostPassword = CreateFriendlyPassword();
         _password.Text = _hostPassword;
@@ -150,6 +155,7 @@ internal sealed class MainForm : Form
 
         WireEvents();
         Controls.Add(BuildLayout());
+        ApplyResponsiveDimensions();
         ApplyModeUi(focusServerField: false);
         ApplyTheme();
     }
@@ -157,6 +163,7 @@ internal sealed class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        ApplyResponsiveDimensions();
         ApplyTheme();
     }
 
@@ -280,7 +287,7 @@ internal sealed class MainForm : Form
         root.Controls.Add(topRow, 0, 1);
         root.Controls.Add(BuildActionButtons(), 0, 2);
 
-        var statusPanel = new Panel { Dock = DockStyle.Fill, Height = 26, Padding = new Padding(3, 4, 3, 2) };
+        var statusPanel = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(3, 5, 3, 4) };
         statusPanel.Controls.Add(_status);
         root.Controls.Add(statusPanel, 0, 3);
 
@@ -291,43 +298,45 @@ internal sealed class MainForm : Form
 
     private Control BuildHeaderBar()
     {
-        var header = new Panel
+        var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 34,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            RowCount = 1,
             Margin = new Padding(0, 0, 0, 4),
         };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var brandFlow = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Left,
-            AutoSize = true,
-            WrapContents = false,
-            Margin = new Padding(0),
-            Padding = new Padding(0, 2, 0, 0),
-        };
-
-        var logoBox = new PictureBox
+        _logoBox = new PictureBox
         {
             Image = BrandAssets.Logo32,
             SizeMode = PictureBoxSizeMode.Zoom,
             Size = new Size(26, 26),
-            Margin = new Padding(2, 1, 8, 0),
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(2, 2, 8, 2),
         };
         var titleLabel = new Label
         {
             Text = "MoStream TV",
             UseMnemonic = false,
             AutoSize = true,
+            Anchor = AnchorStyles.Left,
             Font = new Font("Segoe UI Semibold", 11.5F),
-            Margin = new Padding(0, 3, 0, 0),
+            Margin = new Padding(0, 2, 0, 2),
         };
 
-        brandFlow.Controls.Add(logoBox);
-        brandFlow.Controls.Add(titleLabel);
+        _themeToggleButton.Dock = DockStyle.None;
+        _themeToggleButton.Anchor = AnchorStyles.Right;
+        _themeToggleButton.Margin = new Padding(0, 1, 0, 1);
 
-        header.Controls.Add(brandFlow);
-        header.Controls.Add(_themeToggleButton);
+        header.Controls.Add(_logoBox, 0, 0);
+        header.Controls.Add(titleLabel, 1, 0);
+        header.Controls.Add(_themeToggleButton, 2, 0);
         return header;
     }
 
@@ -339,8 +348,9 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = new Padding(12, 20, 12, 8),
+            Padding = new Padding(12, 22, 12, 8),
         };
+        _setupGroup = group;
 
         var layout = new TableLayoutPanel
         {
@@ -350,10 +360,10 @@ internal sealed class MainForm : Form
             ColumnCount = 4,
             RowCount = 7,
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
         for (var row = 0; row < 7; row++)
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -366,40 +376,48 @@ internal sealed class MainForm : Form
         };
         modePanel.Controls.Add(_hostModeRadio);
         modePanel.Controls.Add(_joinModeRadio);
-        layout.Controls.Add(new Label { Text = "Mode", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        layout.Controls.Add(CreateFieldLabel("Mode"), 0, 0);
         layout.Controls.Add(modePanel, 1, 0);
         layout.SetColumnSpan(modePanel, 3);
 
-        layout.Controls.Add(new Label { Text = "Internet", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        layout.Controls.Add(CreateFieldLabel("Internet"), 0, 1);
         layout.Controls.Add(_shareOverInternetCheckBox, 1, 1);
         layout.SetColumnSpan(_shareOverInternetCheckBox, 3);
 
         var serverPicker = BuildFilePickerRow(_serverHost, _pasteInviteButton);
-        layout.Controls.Add(new Label { Text = "Server address", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+        layout.Controls.Add(CreateFieldLabel("Server address"), 0, 2);
         layout.Controls.Add(serverPicker, 1, 2);
         layout.SetColumnSpan(serverPicker, 3);
 
         AddField(layout, 3, 0, "Room name", _roomName);
         AddField(layout, 3, 2, "Your name", _hostName);
 
-        var passwordPanel = new TableLayoutPanel { Dock = DockStyle.Fill, Height = 30, ColumnCount = 2, RowCount = 1, Margin = new Padding(3, 2, 12, 4) };
+        var passwordPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(3, 2, 12, 4),
+        };
         passwordPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         passwordPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         passwordPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         passwordPanel.Controls.Add(_password, 0, 0);
         passwordPanel.Controls.Add(_showPasswordCheckBox, 1, 0);
-        layout.Controls.Add(new Label { Text = "Password", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 4);
+        layout.Controls.Add(CreateFieldLabel("Password"), 0, 4);
         layout.Controls.Add(passwordPanel, 1, 4);
 
         AddField(layout, 4, 2, "TCP port", _port);
 
         var filePicker = BuildFilePickerRow(_mediaPath, _browseButton);
-        layout.Controls.Add(new Label { Text = "Movie file", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 5);
+        layout.Controls.Add(CreateFieldLabel("Movie file"), 0, 5);
         layout.Controls.Add(filePicker, 1, 5);
         layout.SetColumnSpan(filePicker, 3);
 
         var playerPicker = BuildFilePickerRow(_playerPath, _browsePlayerButton);
-        layout.Controls.Add(new Label { Text = "Media player", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 6);
+        layout.Controls.Add(CreateFieldLabel("Media player"), 0, 6);
         layout.Controls.Add(playerPicker, 1, 6);
         layout.SetColumnSpan(playerPicker, 3);
 
@@ -407,34 +425,40 @@ internal sealed class MainForm : Form
         return group;
     }
 
-    private static TableLayoutPanel BuildFilePickerRow(TextBox pathBox, Button browseButton)
+    private TableLayoutPanel BuildFilePickerRow(TextBox pathBox, ThemedButton browseButton)
     {
         var picker = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Height = 32,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
             RowCount = 1,
             Margin = new Padding(3, 2, 3, 4),
         };
         picker.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        picker.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156));
-        picker.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        picker.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        picker.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        pathBox.Margin = new Padding(0, 2, 6, 2);
+        browseButton.Margin = new Padding(0, 2, 0, 2);
         picker.Controls.Add(pathBox, 0, 0);
         picker.Controls.Add(browseButton, 1, 0);
         return picker;
     }
 
+    private static Label CreateFieldLabel(string label, int leftMargin = 0) => new()
+    {
+        Text = label,
+        UseMnemonic = false,
+        AutoSize = true,
+        Anchor = AnchorStyles.Left,
+        Margin = new Padding(leftMargin, 4, 10, 4),
+    };
+
     private static void AddField(TableLayoutPanel layout, int row, int labelColumn, string label, Control control)
     {
-        control.Margin = new Padding(3, 2, labelColumn == 0 ? 12 : 3, 4);
-        layout.Controls.Add(new Label
-        {
-            Text = label,
-            AutoSize = true,
-            Anchor = AnchorStyles.Left,
-            Margin = new Padding(labelColumn == 0 ? 0 : 8, 0, 3, 0),
-        }, labelColumn, row);
+        control.Margin = new Padding(3, 3, labelColumn == 0 ? 12 : 3, 4);
+        layout.Controls.Add(CreateFieldLabel(label, labelColumn == 0 ? 0 : 10), labelColumn, row);
         layout.Controls.Add(control, labelColumn + 1, row);
     }
 
@@ -479,10 +503,45 @@ internal sealed class MainForm : Form
         {
             Text = "Watch party",
             Dock = DockStyle.Fill,
-            Padding = new Padding(10, 20, 10, 10),
+            Padding = new Padding(10, 22, 10, 10),
         };
+        _watchPartyGroup = group;
         group.Controls.Add(_watchPartyPanel);
         return group;
+    }
+
+    private void ApplyResponsiveDimensions()
+    {
+        var inputButtonHeight = AppTheme.RecommendedInputHeight(this, 32);
+        var captionPad = Math.Max(AppTheme.Scale(this, 22), Font.Height + AppTheme.Scale(this, 8));
+
+        var pickerColumnWidth = Math.Max(
+            AppTheme.Scale(this, 168),
+            AppTheme.MeasureButtonWidth(_browsePlayerButton, "Paste invite", "Choose movie...", "Choose player..."));
+
+        _pasteInviteButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
+        _browseButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
+        _browsePlayerButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
+
+        var actionHeight = Math.Max(AppTheme.Scale(this, 38), Font.Height + AppTheme.Scale(this, 16));
+        _startButton.Height = actionHeight;
+        _stopButton.Height = actionHeight;
+        _copyButton.Height = actionHeight;
+
+        if (_logoBox is not null)
+        {
+            var logoSize = AppTheme.Scale(this, 26);
+            _logoBox.Size = new Size(logoSize, logoSize);
+        }
+
+        var toggleSize = AppTheme.Scale(this, 30);
+        _themeToggleButton.Size = new Size(toggleSize, toggleSize);
+
+        if (_setupGroup is not null)
+            _setupGroup.Padding = new Padding(12, captionPad, 12, 8);
+        _inviteGroup.Padding = new Padding(10, captionPad, 10, 10);
+        if (_watchPartyGroup is not null)
+            _watchPartyGroup.Padding = new Padding(10, captionPad, 10, 10);
     }
 
     private void ApplyTheme()
@@ -549,8 +608,7 @@ internal sealed class MainForm : Form
                 _serverHost.Focus();
         }
 
-        _serverHost.BackColor = _serverHost.ReadOnly ? palette.SurfaceBack : palette.InputBack;
-        _serverHost.ForeColor = _serverHost.ReadOnly && !_serverHost.TabStop ? palette.TextMuted : palette.TextPrimary;
+        AppTheme.StyleTextBox(_serverHost, palette);
         UpdatePortEnabledState();
     }
 
@@ -978,14 +1036,21 @@ internal sealed class MainForm : Form
         _serverHost.BackColor = _serverHost.ReadOnly ? palette.SurfaceBack : palette.InputBack;
         _serverHost.ForeColor = _serverHost.ReadOnly && !_serverHost.TabStop ? palette.TextMuted : palette.TextPrimary;
         _pasteInviteButton.Enabled = !running && !IsHostMode;
-        _roomName.Enabled = !running;
-        _hostName.Enabled = !running;
-        _password.Enabled = !running;
+        SetFieldLocked(_roomName, running, palette);
+        SetFieldLocked(_hostName, running, palette);
+        SetFieldLocked(_password, running, palette);
         UpdatePortEnabledState(running);
-        _playerPath.Enabled = !running;
+        AppTheme.StyleTextBox(_playerPath, palette);
         _browsePlayerButton.Enabled = !running;
-        _mediaPath.Enabled = true;
+        AppTheme.StyleTextBox(_mediaPath, palette);
         _browseButton.Enabled = true;
+    }
+
+    private static void SetFieldLocked(TextBox field, bool locked, ThemePalette palette)
+    {
+        field.ReadOnly = locked;
+        field.TabStop = !locked;
+        AppTheme.StyleTextBox(field, palette);
     }
 
     private void UpdatePortEnabledState(bool? runningOverride = null)

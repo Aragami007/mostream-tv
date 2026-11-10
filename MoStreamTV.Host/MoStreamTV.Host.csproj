@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MoStreamTV.Host</AssemblyName>
     <RootNamespace>MoStreamTV.Host</RootNamespace>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <ApplicationIcon>Assets\mostream.ico</ApplicationIcon>
   </PropertyGroup>
 

@@ -23,10 +23,18 @@ internal static class PromptDialog
         };
 
         var activePalette = palette ?? AppTheme.GetPalette(AppTheme.LoadDarkPreference());
+        var dpiScale = dialog.DeviceDpi > 0 ? dialog.DeviceDpi / 96f : 1f;
+        var scaledWidth = Math.Max(multiline ? 520 : 500, (int)Math.Round((multiline ? 520 : 500) * dpiScale));
+        dialog.ClientSize = new Size(scaledWidth, multiline ? (int)Math.Round(250 * dpiScale) : (int)Math.Round(172 * dpiScale));
+        dialog.AutoSize = true;
+        dialog.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        dialog.MinimumSize = new Size(scaledWidth, multiline ? (int)Math.Round(240 * dpiScale) : (int)Math.Round(175 * dpiScale));
 
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(14),
             ColumnCount = 1,
             RowCount = 3,
@@ -39,8 +47,10 @@ internal static class PromptDialog
         var label = new Label
         {
             Text = prompt,
+            UseMnemonic = false,
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 6),
+            MaximumSize = new Size(scaledWidth - 36, 0),
+            Margin = new Padding(0, 0, 0, 8),
         };
 
         var input = new TextBox
@@ -48,9 +58,13 @@ internal static class PromptDialog
             Dock = DockStyle.Fill,
             Multiline = multiline,
             AcceptsReturn = multiline,
+            MinimumSize = new Size(0, multiline ? (int)Math.Round(96 * dpiScale) : 0),
             ScrollBars = multiline ? ScrollBars.Vertical : ScrollBars.None,
-            Margin = new Padding(0, 0, 0, 10),
+            Margin = new Padding(0, 0, 0, 12),
         };
+
+        var buttonHeight = AppTheme.RecommendedInputHeight(dialog, 32);
+        var buttonWidth = Math.Max(AppTheme.Scale(dialog, 92), AppTheme.MeasureButtonWidth(dialog, "OK", "Cancel"));
 
         var buttonRow = new FlowLayoutPanel
         {
@@ -65,15 +79,15 @@ internal static class PromptDialog
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,
-            Width = 88,
-            Height = 30,
+            Width = buttonWidth,
+            Height = buttonHeight,
         };
         var okButton = new ThemedButton
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
-            Width = 88,
-            Height = 30,
+            Width = buttonWidth,
+            Height = buttonHeight,
             Margin = new Padding(0, 0, 8, 0),
         };
 

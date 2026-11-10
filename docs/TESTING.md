@@ -16,10 +16,10 @@ To build the same friend-ready ZIP used for releases:
 
 ## Local smoke test
 
-The 0.5.0 verification performed on Windows verified:
+The 0.5.1 verification performed on Windows verified:
 
 - Release compilation (`dotnet build -c Release`), publish (`dist\MoStreamTV.Host`), and ZIP packaging (`Build-Release.ps1`) with zero warnings or errors.
-- UI layout and visual inspection across **Host** and **Join** modes in both **Light** and **Dark** themes (`AppTheme`, `WatchPartyPanel`, `MainForm`, and `PromptDialog`), confirming removal of the playback transport bar, separated **Chat** and **Activity log** views, clean branding icons, subtle icon-only theme toggle, and removal of Hamachi phrasing from the UI.
+- UI layout and visual inspection across **Host** (idle and active) and **Join** modes in both **Light** and **Dark** themes, plus simulated 125% (`12.5pt`) font scaling, confirming full Dark styling on disabled `ListView`s, `ComboBox`, `NumericUpDown` spin buttons, and `CheckButton`, as well as centered, unclipped captions across all buttons and labels.
 - End-to-end watch-party smoke test: started `SyncplayHost` + `WebSocketTunnelHost` (`wss://*.trycloudflare.com`) + Host `SyncplayClientSession` + Friend `SyncplayClientSession` connecting through a live Cloudflare Quick Tunnel with `vlc.exe`, verifying multi-user presence, separate **Chat** and **Activity log** event routing, and clean shutdown.
 
 ## Manual acceptance test

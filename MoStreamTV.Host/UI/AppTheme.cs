@@ -147,6 +147,30 @@ internal static class AppTheme
 
     public static ThemePalette GetPalette(bool isDark) => isDark ? Dark : Light;
 
+    public static int Scale(Control control, int logicalPixels)
+    {
+        var dpi = control.DeviceDpi > 0 ? control.DeviceDpi : 96;
+        return Math.Max(logicalPixels, (int)Math.Round(logicalPixels * (dpi / 96f)));
+    }
+
+    public static int RecommendedInputHeight(Control control, int logicalMinHeight = 32)
+    {
+        var measured = TextRenderer.MeasureText("Ag", control.Font).Height;
+        return Math.Max(Scale(control, logicalMinHeight), measured + Scale(control, 12));
+    }
+
+    public static int MeasureButtonWidth(Control control, params string[] candidateTexts)
+    {
+        var maxTextWidth = 0;
+        foreach (var text in candidateTexts)
+        {
+            if (!string.IsNullOrEmpty(text))
+                maxTextWidth = Math.Max(maxTextWidth, TextRenderer.MeasureText(text, control.Font, Size.Empty, TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine).Width);
+        }
+
+        return maxTextWidth + Scale(control, 28);
+    }
+
     public static void ApplyTitleBar(Form form, bool isDark)
     {
         if (!form.IsHandleCreated)
@@ -179,7 +203,7 @@ internal static class AppTheme
         foreach (Control control in parent.Controls)
         {
             ApplySingleControl(control, palette);
-            if (control.HasChildren)
+            if (control.HasChildren && control is not ThemedNumericUpDown)
                 ApplyChildren(control, palette);
         }
     }
@@ -204,9 +228,7 @@ internal static class AppTheme
                 return;
 
             case TextBox textBox:
-                textBox.BackColor = textBox.ReadOnly ? palette.SurfaceBack : palette.InputBack;
-                textBox.ForeColor = textBox.ReadOnly && !textBox.TabStop ? palette.TextMuted : palette.TextPrimary;
-                textBox.BorderStyle = palette.IsDark ? BorderStyle.FixedSingle : BorderStyle.Fixed3D;
+                StyleTextBox(textBox, palette);
                 return;
 
             case RichTextBox richText:
@@ -216,10 +238,18 @@ internal static class AppTheme
                 ApplyNativeDarkTheme(richText, palette.IsDark ? "DarkMode_Explorer" : null);
                 return;
 
+            case ThemedNumericUpDown themedNumeric:
+                themedNumeric.ApplyTheme(palette);
+                return;
+
             case NumericUpDown numeric:
                 numeric.BackColor = palette.InputBack;
                 numeric.ForeColor = palette.TextPrimary;
                 numeric.BorderStyle = palette.IsDark ? BorderStyle.FixedSingle : BorderStyle.Fixed3D;
+                return;
+
+            case ThemedComboBox themedCombo:
+                themedCombo.ApplyTheme(palette);
                 return;
 
             case ComboBox combo:
@@ -229,11 +259,19 @@ internal static class AppTheme
                 ApplyNativeDarkTheme(combo, palette.IsDark ? "DarkMode_CFD" : null);
                 return;
 
+            case ThemedListView themedListView:
+                themedListView.ApplyTheme(palette);
+                return;
+
             case ListView listView:
                 listView.BackColor = palette.InputBack;
                 listView.ForeColor = palette.TextPrimary;
                 listView.OwnerDraw = palette.IsDark && listView.HeaderStyle != ColumnHeaderStyle.None;
                 ApplyNativeDarkTheme(listView, palette.IsDark ? "DarkMode_Explorer" : "Explorer");
+                return;
+
+            case ThemedCheckButton themedCheckButton:
+                themedCheckButton.ApplyTheme(palette);
                 return;
 
             case CheckBox { Appearance: Appearance.Button } readyButton:
@@ -254,12 +292,17 @@ internal static class AppTheme
                 return;
 
             case Label label:
-                if (Equals(label.Tag, "muted"))
-                    label.ForeColor = palette.TextMuted;
-                else
-                    label.ForeColor = palette.TextPrimary;
+                label.ForeColor = Equals(label.Tag, "muted") ? palette.TextMuted : palette.TextPrimary;
                 return;
         }
+    }
+
+    public static void StyleTextBox(TextBox textBox, ThemePalette palette)
+    {
+        var inactive = !textBox.Enabled || (textBox.ReadOnly && !textBox.TabStop);
+        textBox.BackColor = inactive || textBox.ReadOnly ? palette.SurfaceBack : palette.InputBack;
+        textBox.ForeColor = inactive ? palette.TextMuted : palette.TextPrimary;
+        textBox.BorderStyle = palette.IsDark ? BorderStyle.FixedSingle : BorderStyle.Fixed3D;
     }
 
     public static void StyleButton(ButtonBase button, ThemePalette palette)
@@ -284,7 +327,45 @@ internal static class AppTheme
         }
     }
 
-    private static void ApplyNativeDarkTheme(Control control, string? themeName)
+    internal static void DrawButtonFace(
+        Graphics graphics,
+        Rectangle clientRectangle,
+        string text,
+        Font font,
+        Color backColor,
+        Color borderColor,
+        Color foreColor,
+        bool focused)
+    {
+        graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        using var backBrush = new SolidBrush(backColor);
+        using var borderPen = new Pen(borderColor);
+        graphics.FillRectangle(backBrush, clientRectangle);
+
+        var outerRect = new Rectangle(0, 0, Math.Max(1, clientRectangle.Width - 1), Math.Max(1, clientRectangle.Height - 1));
+        graphics.DrawRectangle(borderPen, outerRect);
+
+        if (focused && clientRectangle.Width > 8 && clientRectangle.Height > 8)
+        {
+            using var focusPen = new Pen(Color.FromArgb(110, 155, 220)) { DashStyle = DashStyle.Dot };
+            graphics.DrawRectangle(focusPen, new Rectangle(2, 2, clientRectangle.Width - 5, clientRectangle.Height - 5));
+        }
+
+        var textBounds = new Rectangle(4, 0, Math.Max(0, clientRectangle.Width - 8), clientRectangle.Height);
+        TextRenderer.DrawText(
+            graphics,
+            text,
+            font,
+            textBounds,
+            foreColor,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+    }
+
+    internal static Color DarkDisabledBack => Color.FromArgb(31, 34, 40);
+    internal static Color DarkDisabledBorder => Color.FromArgb(50, 54, 64);
+    internal static Color DarkDisabledFore => Color.FromArgb(120, 128, 142);
+
+    internal static void ApplyNativeDarkTheme(Control control, string? themeName)
     {
         if (control.IsHandleCreated)
             TrySetWindowTheme(control.Handle, themeName);
@@ -309,6 +390,48 @@ internal static class AppTheme
         }
     }
 
+    internal static void UpdateBrush(ref IntPtr brushHandle, Color color)
+    {
+        if (brushHandle != IntPtr.Zero)
+            NativeMethods.DeleteObject(brushHandle);
+        brushHandle = NativeMethods.CreateSolidBrush(ColorTranslator.ToWin32(color));
+    }
+
+    internal static void ReleaseBrush(ref IntPtr brushHandle)
+    {
+        if (brushHandle == IntPtr.Zero)
+            return;
+        NativeMethods.DeleteObject(brushHandle);
+        brushHandle = IntPtr.Zero;
+    }
+
+    internal static bool TryHandleDarkCtlColor(ref Message m, ThemePalette palette, bool enabled, IntPtr brushHandle)
+    {
+        if (!palette.IsDark || (m.Msg != NativeMethods.WmCtlColorEdit && m.Msg != NativeMethods.WmCtlColorStatic))
+            return false;
+
+        var back = enabled ? palette.InputBack : palette.SurfaceBack;
+        var fore = enabled ? palette.TextPrimary : palette.TextMuted;
+        NativeMethods.SetBkColor(m.WParam, ColorTranslator.ToWin32(back));
+        NativeMethods.SetTextColor(m.WParam, ColorTranslator.ToWin32(fore));
+        m.Result = brushHandle;
+        return true;
+    }
+
+    internal static void HandlePaintOrPrint(Control control, ref Message m, Action<Graphics> paint)
+    {
+        if (m.Msg == NativeMethods.WmPaint && control.IsHandleCreated)
+        {
+            using var graphics = control.CreateGraphics();
+            paint(graphics);
+        }
+        else if (m.Msg == NativeMethods.WmPrint && m.WParam != IntPtr.Zero)
+        {
+            using var graphics = Graphics.FromHdc(m.WParam);
+            paint(graphics);
+        }
+    }
+
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
@@ -316,9 +439,90 @@ internal static class AppTheme
     private static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string? pszSubIdList);
 }
 
+internal static class NativeMethods
+{
+    public const int WmPaint = 0x000F;
+    public const int WmEraseBkgnd = 0x0014;
+    public const int WmCtlColorEdit = 0x0133;
+    public const int WmCtlColorStatic = 0x0138;
+    public const int WmReflect = 0x2000;
+    public const int WmPrint = 0x0317;
+    public const int WmPrintClient = 0x0318;
+    public const int LvmGetHeader = 0x101F;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COMBOBOXINFO
+    {
+        public int cbSize;
+        public RECT rcItem;
+        public RECT rcButton;
+        public int stateButton;
+        public IntPtr hwndCombo;
+        public IntPtr hwndItem;
+        public IntPtr hwndList;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PAINTSTRUCT
+    {
+        public IntPtr hdc;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fErase;
+        public RECT rcPaint;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fRestore;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool fIncUpdate;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+        public byte[] rgbReserved;
+    }
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateSolidBrush(int crColor);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("gdi32.dll")]
+    public static extern int SetBkColor(IntPtr hdc, int crColor);
+
+    [DllImport("gdi32.dll")]
+    public static extern int SetTextColor(IntPtr hdc, int crColor);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetComboBoxInfo(IntPtr hwndCombo, ref COMBOBOXINFO pcbi);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr BeginPaint(IntPtr hWnd, out PAINTSTRUCT lpPaint);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EndPaint(IntPtr hWnd, [In] ref PAINTSTRUCT lpPaint);
+}
+
 internal sealed class ThemedButton : Button
 {
     private ThemePalette _palette = AppTheme.Light;
+    private bool _hovered;
+    private bool _pressed;
 
     public void ApplyTheme(ThemePalette palette)
     {
@@ -327,26 +531,558 @@ internal sealed class ThemedButton : Button
         Invalidate();
     }
 
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        _hovered = true;
+        Invalidate();
+        base.OnMouseEnter(e);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        _hovered = false;
+        _pressed = false;
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs mevent)
+    {
+        if (mevent.Button == MouseButtons.Left)
+        {
+            _pressed = true;
+            Invalidate();
+        }
+        base.OnMouseDown(mevent);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs mevent)
+    {
+        _pressed = false;
+        Invalidate();
+        base.OnMouseUp(mevent);
+    }
+
     protected override void OnPaint(PaintEventArgs pevent)
     {
-        base.OnPaint(pevent);
-        if (Enabled || !_palette.IsDark)
+        if (!_palette.IsDark)
+        {
+            base.OnPaint(pevent);
+            return;
+        }
+
+        // Paint dark flat buttons directly so WinForms FlatStyle padding does not clip or warp text.
+        var back = !Enabled
+            ? AppTheme.DarkDisabledBack
+            : _pressed
+                ? _palette.SelectionBack
+                : _hovered
+                    ? _palette.ButtonHover
+                    : _palette.ButtonBack;
+        var border = !Enabled
+            ? AppTheme.DarkDisabledBorder
+            : _hovered
+                ? Color.FromArgb(92, 102, 120)
+                : _palette.Border;
+        var fore = Enabled ? _palette.TextPrimary : AppTheme.DarkDisabledFore;
+
+        AppTheme.DrawButtonFace(pevent.Graphics, ClientRectangle, Text, Font, back, border, fore, Focused && ShowFocusCues && Enabled);
+    }
+}
+
+internal sealed class ThemedCheckButton : CheckBox
+{
+    private ThemePalette _palette = AppTheme.Light;
+    private bool _hovered;
+    private bool _pressed;
+
+    public ThemedCheckButton()
+    {
+        Appearance = Appearance.Button;
+        TextAlign = ContentAlignment.MiddleCenter;
+    }
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        _palette = palette;
+        if (Checked)
+        {
+            FlatStyle = palette.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
+            UseVisualStyleBackColor = false;
+            BackColor = palette.ReadyBack;
+            ForeColor = palette.ReadyFore;
+        }
+        else
+        {
+            FlatAppearance.CheckedBackColor = palette.ButtonBack;
+            AppTheme.StyleButton(this, palette);
+        }
+
+        Invalidate();
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        _hovered = true;
+        Invalidate();
+        base.OnMouseEnter(e);
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        _hovered = false;
+        _pressed = false;
+        Invalidate();
+        base.OnMouseLeave(e);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs mevent)
+    {
+        if (mevent.Button == MouseButtons.Left)
+        {
+            _pressed = true;
+            Invalidate();
+        }
+        base.OnMouseDown(mevent);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs mevent)
+    {
+        _pressed = false;
+        Invalidate();
+        base.OnMouseUp(mevent);
+    }
+
+    protected override void OnPaint(PaintEventArgs pevent)
+    {
+        if (!_palette.IsDark)
+        {
+            base.OnPaint(pevent);
+            return;
+        }
+
+        Color back;
+        Color border;
+        Color fore;
+        if (!Enabled)
+        {
+            back = AppTheme.DarkDisabledBack;
+            border = AppTheme.DarkDisabledBorder;
+            fore = AppTheme.DarkDisabledFore;
+        }
+        else if (Checked)
+        {
+            back = _pressed ? Color.FromArgb(48, 114, 72) : _hovered ? Color.FromArgb(44, 104, 66) : _palette.ReadyBack;
+            border = Color.FromArgb(62, 148, 96);
+            fore = _palette.ReadyFore;
+        }
+        else
+        {
+            back = _pressed ? _palette.SelectionBack : _hovered ? _palette.ButtonHover : _palette.ButtonBack;
+            border = _hovered ? Color.FromArgb(92, 102, 120) : _palette.Border;
+            fore = _palette.TextPrimary;
+        }
+
+        AppTheme.DrawButtonFace(pevent.Graphics, ClientRectangle, Text, Font, back, border, fore, Focused && ShowFocusCues && Enabled);
+    }
+}
+
+internal sealed class ThemedComboBox : ComboBox
+{
+    private ThemePalette _palette = AppTheme.Light;
+    private IntPtr _editBrush;
+
+    public ThemedComboBox()
+    {
+        DrawMode = DrawMode.OwnerDrawFixed;
+    }
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        _palette = palette;
+        FlatStyle = palette.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
+        ItemHeight = Math.Max(AppTheme.Scale(this, 22), TextRenderer.MeasureText("Ag", Font).Height + 4);
+        SyncEditColors();
+        AppTheme.ApplyNativeDarkTheme(this, palette.IsDark ? "DarkMode_CFD" : null);
+        Invalidate(true);
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        base.OnEnabledChanged(e);
+        SyncEditColors();
+        Invalidate(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        AppTheme.ReleaseBrush(ref _editBrush);
+        base.Dispose(disposing);
+    }
+
+    protected override void OnDrawItem(DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= Items.Count)
             return;
 
-        // WinForms FlatStyle.Flat paints disabled button captions with low-contrast system shadow.
-        var surface = Color.FromArgb(31, 34, 40);
-        using var backBrush = new SolidBrush(surface);
-        using var borderPen = new Pen(Color.FromArgb(50, 54, 64));
-        var inner = new Rectangle(0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
-        pevent.Graphics.FillRectangle(backBrush, ClientRectangle);
-        pevent.Graphics.DrawRectangle(borderPen, inner);
+        var selected = (e.State & DrawItemState.Selected) != 0;
+        var back = selected ? _palette.SelectionBack : (_palette.IsDark ? _palette.InputBack : SystemColors.Window);
+        var fore = selected ? Color.White : _palette.TextPrimary;
+
+        using var backBrush = new SolidBrush(back);
+        e.Graphics.FillRectangle(backBrush, e.Bounds);
+
+        var text = GetItemText(Items[e.Index]) ?? string.Empty;
+        var textBounds = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 8), e.Bounds.Height);
         TextRenderer.DrawText(
-            pevent.Graphics,
-            Text,
+            e.Graphics,
+            text,
             Font,
-            ClientRectangle,
-            Color.FromArgb(118, 125, 138),
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+            textBounds,
+            fore,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (AppTheme.TryHandleDarkCtlColor(ref m, _palette, Enabled, _editBrush))
+            return;
+
+        base.WndProc(ref m);
+
+        if (_palette.IsDark)
+            AppTheme.HandlePaintOrPrint(this, ref m, PaintDarkFrame);
+    }
+
+    private void SyncEditColors()
+    {
+        var back = _palette.IsDark ? (Enabled ? _palette.InputBack : _palette.SurfaceBack) : SystemColors.Window;
+        var fore = Enabled ? _palette.TextPrimary : _palette.TextMuted;
+        BackColor = back;
+        ForeColor = fore;
+        AppTheme.UpdateBrush(ref _editBrush, back);
+    }
+
+    private void PaintDarkFrame(Graphics graphics)
+    {
+        var back = Enabled ? _palette.InputBack : _palette.SurfaceBack;
+        var buttonWidth = Math.Max(20, SystemInformation.VerticalScrollBarWidth);
+        var itemRect = new Rectangle(3, 3, Math.Max(0, Width - buttonWidth - 6), Math.Max(0, Height - 6));
+        var buttonRect = new Rectangle(Math.Max(0, Width - buttonWidth - 1), 1, buttonWidth, Math.Max(1, Height - 2));
+
+        var info = new NativeMethods.COMBOBOXINFO { cbSize = Marshal.SizeOf<NativeMethods.COMBOBOXINFO>() };
+        if (NativeMethods.GetComboBoxInfo(Handle, ref info))
+        {
+            if (info.hwndItem != IntPtr.Zero && NativeMethods.GetWindowRect(info.hwndItem, out var editScreen))
+            {
+                var topLeft = PointToClient(new Point(editScreen.Left, editScreen.Top));
+                itemRect = new Rectangle(
+                    topLeft.X,
+                    topLeft.Y,
+                    Math.Max(0, editScreen.Right - editScreen.Left),
+                    Math.Max(0, editScreen.Bottom - editScreen.Top));
+            }
+            else
+            {
+                itemRect = new Rectangle(
+                    info.rcItem.Left,
+                    info.rcItem.Top,
+                    Math.Max(0, info.rcItem.Right - info.rcItem.Left),
+                    Math.Max(0, info.rcItem.Bottom - info.rcItem.Top));
+            }
+
+            if (info.rcButton.Right > info.rcButton.Left)
+            {
+                buttonRect = new Rectangle(
+                    info.rcButton.Left,
+                    1,
+                    Math.Max(16, Width - info.rcButton.Left - 1),
+                    Math.Max(1, Height - 2));
+            }
+        }
+
+        using var frameRegion = new Region(ClientRectangle);
+        if (Enabled && itemRect.Width > 0 && itemRect.Height > 0)
+            frameRegion.Exclude(itemRect);
+
+        using (var backBrush = new SolidBrush(back))
+            graphics.FillRegion(backBrush, frameRegion);
+
+        if (!Enabled && !string.IsNullOrEmpty(Text) && itemRect.Width > 0 && itemRect.Height > 0)
+        {
+            TextRenderer.DrawText(
+                graphics,
+                Text,
+                Font,
+                itemRect,
+                _palette.TextMuted,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
+        var buttonBack = Enabled ? _palette.ButtonBack : _palette.SurfaceBack;
+        using (var buttonBrush = new SolidBrush(buttonBack))
+            graphics.FillRectangle(buttonBrush, buttonRect);
+
+        using var borderPen = new Pen(_palette.Border);
+        graphics.DrawLine(borderPen, buttonRect.Left, 1, buttonRect.Left, Height - 2);
+        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
+
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var cx = buttonRect.Left + buttonRect.Width / 2f;
+        var cy = Height / 2f;
+        using var arrowPen = new Pen(Enabled ? _palette.TextPrimary : _palette.TextMuted, 1.6f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+        graphics.DrawLines(arrowPen, new[]
+        {
+            new PointF(cx - 3.5f, cy - 1.5f),
+            new PointF(cx, cy + 2f),
+            new PointF(cx + 3.5f, cy - 1.5f),
+        });
+    }
+}
+
+internal sealed class ThemedNumericUpDown : NumericUpDown
+{
+    private ThemePalette _palette = AppTheme.Light;
+    private IntPtr _editBrush;
+    private SpinButtonWindow? _spinWindow;
+    private bool _spinHookSubscribed;
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        _palette = palette;
+        BorderStyle = palette.IsDark ? BorderStyle.FixedSingle : BorderStyle.Fixed3D;
+        SyncColors();
+        EnsureSpinHook();
+        Invalidate(true);
+        if (Controls.Count > 0)
+            Controls[0].Invalidate();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        EnsureSpinHook();
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        base.OnEnabledChanged(e);
+        SyncColors();
+        Invalidate(true);
+        if (Controls.Count > 0)
+            Controls[0].Invalidate();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        _spinWindow?.ReleaseHandle();
+        _spinWindow = null;
+        AppTheme.ReleaseBrush(ref _editBrush);
+        base.Dispose(disposing);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (AppTheme.TryHandleDarkCtlColor(ref m, _palette, Enabled, _editBrush))
+            return;
+
+        base.WndProc(ref m);
+
+        if (_palette.IsDark)
+        {
+            AppTheme.HandlePaintOrPrint(this, ref m, graphics =>
+            {
+                using var borderPen = new Pen(_palette.Border);
+                graphics.DrawRectangle(borderPen, 0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
+            });
+        }
+    }
+
+    private void SyncColors()
+    {
+        var back = _palette.IsDark ? (Enabled ? _palette.InputBack : _palette.SurfaceBack) : SystemColors.Window;
+        var fore = Enabled ? _palette.TextPrimary : _palette.TextMuted;
+        BackColor = back;
+        ForeColor = fore;
+        AppTheme.UpdateBrush(ref _editBrush, back);
+    }
+
+    private void EnsureSpinHook()
+    {
+        if (Controls.Count == 0)
+            return;
+
+        if (!_spinHookSubscribed)
+        {
+            _spinHookSubscribed = true;
+            Controls[0].HandleCreated += (_, _) => EnsureSpinHook();
+        }
+
+        if (!Controls[0].IsHandleCreated)
+            return;
+
+        _spinWindow ??= new SpinButtonWindow(this);
+        if (_spinWindow.Handle != Controls[0].Handle)
+        {
+            _spinWindow.ReleaseHandle();
+            _spinWindow.AssignHandle(Controls[0].Handle);
+        }
+    }
+
+    private sealed class SpinButtonWindow : NativeWindow
+    {
+        private readonly ThemedNumericUpDown _owner;
+
+        public SpinButtonWindow(ThemedNumericUpDown owner)
+        {
+            _owner = owner;
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (!_owner._palette.IsDark)
+            {
+                base.WndProc(ref m);
+                return;
+            }
+
+            if (m.Msg == NativeMethods.WmEraseBkgnd)
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+
+            if (m.Msg is NativeMethods.WmPrint or NativeMethods.WmPrintClient && m.WParam != IntPtr.Zero)
+            {
+                using var graphics = Graphics.FromHdc(m.WParam);
+                PaintSpinButtons(graphics);
+                m.Result = (IntPtr)1;
+                return;
+            }
+
+            if (m.Msg == NativeMethods.WmPaint)
+            {
+                var hdc = NativeMethods.BeginPaint(m.HWnd, out var ps);
+                try
+                {
+                    using var graphics = Graphics.FromHdc(hdc);
+                    PaintSpinButtons(graphics);
+                }
+                finally
+                {
+                    NativeMethods.EndPaint(m.HWnd, ref ps);
+                }
+
+                m.Result = IntPtr.Zero;
+                return;
+            }
+
+            base.WndProc(ref m);
+        }
+
+        private void PaintSpinButtons(Graphics graphics)
+        {
+            var size = _owner.Controls[0].ClientSize;
+            var palette = _owner._palette;
+            var back = _owner.Enabled ? palette.ButtonBack : palette.SurfaceBack;
+            var arrowColor = _owner.Enabled ? palette.TextPrimary : palette.TextMuted;
+            var midY = size.Height / 2;
+
+            using (var backBrush = new SolidBrush(back))
+                graphics.FillRectangle(backBrush, 0, 0, size.Width, size.Height);
+
+            using (var borderPen = new Pen(palette.Border))
+            {
+                graphics.DrawLine(borderPen, 0, 0, 0, size.Height);
+                graphics.DrawLine(borderPen, 0, midY, size.Width, midY);
+            }
+
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var arrowBrush = new SolidBrush(arrowColor);
+            var cx = size.Width / 2f;
+            var upCy = midY / 2f;
+            var downCy = midY + (size.Height - midY) / 2f;
+
+            graphics.FillPolygon(arrowBrush, new[]
+            {
+                new PointF(cx, upCy - 2.2f),
+                new PointF(cx - 3.3f, upCy + 1.8f),
+                new PointF(cx + 3.3f, upCy + 1.8f),
+            });
+            graphics.FillPolygon(arrowBrush, new[]
+            {
+                new PointF(cx, downCy + 2.2f),
+                new PointF(cx - 3.3f, downCy - 1.8f),
+                new PointF(cx + 3.3f, downCy - 1.8f),
+            });
+        }
+    }
+}
+
+internal sealed class ThemedListView : ListView
+{
+    private ThemePalette _palette = AppTheme.Light;
+
+    public void ApplyTheme(ThemePalette palette)
+    {
+        _palette = palette;
+        BackColor = EffectiveBackColor;
+        ForeColor = palette.TextPrimary;
+        OwnerDraw = palette.IsDark && HeaderStyle != ColumnHeaderStyle.None;
+        AppTheme.ApplyNativeDarkTheme(this, palette.IsDark ? "DarkMode_Explorer" : "Explorer");
+        Invalidate(true);
+    }
+
+    private Color EffectiveBackColor => _palette.IsDark && !Enabled ? _palette.SurfaceBack : _palette.InputBack;
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        base.OnEnabledChanged(e);
+        BackColor = EffectiveBackColor;
+        Invalidate(true);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (_palette.IsDark && m.Msg == NativeMethods.WmEraseBkgnd)
+        {
+            using var graphics = Graphics.FromHdc(m.WParam);
+            using var backBrush = new SolidBrush(EffectiveBackColor);
+            graphics.FillRectangle(backBrush, ClientRectangle);
+            m.Result = (IntPtr)1;
+            return;
+        }
+
+        base.WndProc(ref m);
+
+        if (_palette.IsDark && !Enabled)
+            AppTheme.HandlePaintOrPrint(this, ref m, PaintDisabledBody);
+    }
+
+    private void PaintDisabledBody(Graphics graphics)
+    {
+        var topY = GetHeaderHeight();
+        if (ClientSize.Height > topY && ClientSize.Width > 0)
+        {
+            using var backBrush = new SolidBrush(_palette.SurfaceBack);
+            graphics.FillRectangle(backBrush, 0, topY, ClientSize.Width, ClientSize.Height - topY);
+        }
+    }
+
+    private int GetHeaderHeight()
+    {
+        if (View != View.Details || HeaderStyle == ColumnHeaderStyle.None || !IsHandleCreated)
+            return 0;
+
+        var headerHandle = NativeMethods.SendMessage(Handle, NativeMethods.LvmGetHeader, IntPtr.Zero, IntPtr.Zero);
+        if (headerHandle != IntPtr.Zero && NativeMethods.GetWindowRect(headerHandle, out var rect))
+            return Math.Max(0, rect.Bottom - rect.Top);
+
+        return 0;
     }
 }
 
@@ -372,13 +1108,11 @@ internal sealed class ThemedGroupBox : GroupBox
         var borderRect = new Rectangle(0, topOffset, Math.Max(1, Width - 1), Math.Max(1, Height - topOffset - 1));
 
         using (var borderPen = new Pen(BorderColor))
-        {
             g.DrawRectangle(borderPen, borderRect);
-        }
 
         if (!string.IsNullOrEmpty(Text))
         {
-            var textRect = new Rectangle(8, 0, Math.Min(Width - 16, textSize.Width + 4), textSize.Height);
+            var textRect = new Rectangle(8, 0, Math.Min(Width - 16, textSize.Width + 6), textSize.Height);
             g.FillRectangle(backBrush, textRect);
             TextRenderer.DrawText(g, Text, Font, new Point(10, 0), ForeColor, BackColor, flags);
         }

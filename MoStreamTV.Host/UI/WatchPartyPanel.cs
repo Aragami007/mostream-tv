@@ -18,16 +18,16 @@ internal sealed class WatchPartyPanel : Panel
     private readonly RichTextBox _chatLog = CreateReadOnlyLogBox();
     private readonly TextBox _chatInput = new()
     {
-        Dock = DockStyle.Fill,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
         PlaceholderText = "Type a chat message...",
     };
-    private readonly Button _chatSendButton = new ThemedButton { Text = "Send", Dock = DockStyle.Fill, Height = 28 };
+    private readonly ThemedButton _chatSendButton = new() { Text = "Send", Anchor = AnchorStyles.Left | AnchorStyles.Right };
     private readonly RichTextBox _activityLog = CreateReadOnlyLogBox();
 
-    private readonly ComboBox _roomCombo = new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown };
-    private readonly Button _joinRoomButton = new ThemedButton { Text = "Join room", Dock = DockStyle.Fill, Height = 28 };
+    private readonly ThemedComboBox _roomCombo = new() { Anchor = AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDown };
+    private readonly ThemedButton _joinRoomButton = new() { Text = "Join room", Anchor = AnchorStyles.Left | AnchorStyles.Right };
 
-    private readonly ListView _userList = new()
+    private readonly ThemedListView _userList = new()
     {
         Dock = DockStyle.Fill,
         View = View.Details,
@@ -38,31 +38,30 @@ internal sealed class WatchPartyPanel : Panel
         ShowItemToolTips = true,
     };
 
-    private readonly CheckBox _readyCheckBox = new()
+    private readonly ThemedCheckButton _readyCheckBox = new()
     {
-        Appearance = Appearance.Button,
         Text = "I'm ready to watch!",
-        TextAlign = ContentAlignment.MiddleCenter,
-        Height = 30,
-        Width = 160,
+        Anchor = AnchorStyles.Left,
         Font = new Font("Segoe UI Semibold", 9.5F),
     };
     private readonly CheckBox _autoPlayCheckBox = new()
     {
         Text = "Play when all ready",
+        UseMnemonic = false,
         AutoSize = true,
-        Margin = new Padding(10, 6, 4, 0),
+        Anchor = AnchorStyles.Left,
+        Margin = new Padding(12, 0, 6, 0),
     };
-    private readonly NumericUpDown _autoPlayMinUsers = new()
+    private readonly ThemedNumericUpDown _autoPlayMinUsers = new()
     {
         Minimum = 2,
         Maximum = 99,
         Value = 2,
-        Width = 52,
-        Margin = new Padding(2, 4, 0, 0),
+        Anchor = AnchorStyles.Left,
+        Margin = new Padding(0),
     };
 
-    private readonly ListView _playlistView = new()
+    private readonly ThemedListView _playlistView = new()
     {
         Dock = DockStyle.Fill,
         View = View.Details,
@@ -74,11 +73,11 @@ internal sealed class WatchPartyPanel : Panel
         HideSelection = false,
     };
     private readonly ColumnHeader _playlistColumn = new() { Text = "Playlist", Width = 300 };
-    private readonly Button _addFilesButton = CreateToolbarButton("Add file(s)...");
-    private readonly Button _addUrlButton = CreateToolbarButton("Add URL...");
-    private readonly Button _playPlaylistButton = CreateToolbarButton("Play");
-    private readonly Button _removePlaylistButton = CreateToolbarButton("Remove");
-    private readonly Button _shufflePlaylistButton = CreateToolbarButton("Shuffle");
+    private readonly ThemedButton _addFilesButton = CreateToolbarButton("Add file(s)...");
+    private readonly ThemedButton _addUrlButton = CreateToolbarButton("Add URL...");
+    private readonly ThemedButton _playPlaylistButton = CreateToolbarButton("Play");
+    private readonly ThemedButton _removePlaylistButton = CreateToolbarButton("Remove");
+    private readonly ThemedButton _shufflePlaylistButton = CreateToolbarButton("Shuffle");
 
     private readonly ColumnHeader _viewerColumn = new() { Text = "Viewer", Width = 132 };
     private readonly ColumnHeader _statusColumn = new() { Text = "Status", Width = 96 };
@@ -105,8 +104,17 @@ internal sealed class WatchPartyPanel : Panel
         _playlistView.Columns.Add(_playlistColumn);
 
         Controls.Add(BuildLayout());
+        ApplyResponsiveDimensions();
         WireEvents();
         SetActive(false);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyResponsiveDimensions();
+        ResizeUserListColumns();
+        ResizePlaylistColumn();
     }
 
     protected override void Dispose(bool disposing)
@@ -134,6 +142,11 @@ internal sealed class WatchPartyPanel : Panel
     {
         _palette = palette;
         _userList.GridLines = !palette.IsDark;
+        AppTheme.StyleTextBox(_chatInput, palette);
+        _roomCombo.ApplyTheme(palette);
+        _autoPlayMinUsers.ApplyTheme(palette);
+        _userList.ApplyTheme(palette);
+        _playlistView.ApplyTheme(palette);
         UpdateReadyButtonVisual();
 
         foreach (ListViewItem item in _userList.Items)
@@ -147,21 +160,29 @@ internal sealed class WatchPartyPanel : Panel
         RebuildLog(_chatLog, _chatEntries);
         RebuildLog(_activityLog, _activityEntries);
         _userList.Invalidate();
+        ResizeUserListColumns();
+        ResizePlaylistColumn();
     }
 
     public void SetActive(bool active)
     {
         _isActive = active;
 
-        _chatInput.Enabled = active;
+        _chatInput.ReadOnly = !active;
+        _chatInput.TabStop = active;
+        _chatInput.Cursor = active ? Cursors.IBeam : Cursors.Default;
+        AppTheme.StyleTextBox(_chatInput, _palette);
+
         _chatSendButton.Enabled = active;
         _roomCombo.Enabled = active;
         _joinRoomButton.Enabled = active;
         _userList.Enabled = active;
+        _userList.TabStop = active;
         _readyCheckBox.Enabled = active;
         _autoPlayCheckBox.Enabled = active;
         _autoPlayMinUsers.Enabled = active;
         _playlistView.Enabled = active;
+        _playlistView.TabStop = active;
         _addFilesButton.Enabled = active;
         _addUrlButton.Enabled = active;
         _playPlaylistButton.Enabled = active;
@@ -178,6 +199,9 @@ internal sealed class WatchPartyPanel : Panel
             SetReadyChecked(false);
             SetAutoPlayChecked(false);
         }
+
+        ResizeUserListColumns();
+        ResizePlaylistColumn();
     }
 
     public void ResetSessionLog()
@@ -219,6 +243,8 @@ internal sealed class WatchPartyPanel : Panel
             _roomCombo.Text = !string.IsNullOrWhiteSpace(update.CurrentRoom)
                 ? update.CurrentRoom
                 : currentRoomText;
+            if (!_roomCombo.Focused)
+                _roomCombo.SelectionLength = 0;
             _roomCombo.EndUpdate();
 
             _userList.BeginUpdate();
@@ -302,7 +328,11 @@ internal sealed class WatchPartyPanel : Panel
         try
         {
             if (!string.IsNullOrWhiteSpace(room))
+            {
                 _roomCombo.Text = room;
+                if (!_roomCombo.Focused)
+                    _roomCombo.SelectionLength = 0;
+            }
         }
         finally
         {
@@ -334,16 +364,35 @@ internal sealed class WatchPartyPanel : Panel
         Font = new Font("Segoe UI", 9.5F),
     };
 
-    private static Button CreateToolbarButton(string text) => new ThemedButton
+    private static ThemedButton CreateToolbarButton(string text) => new()
     {
         Text = text,
-        AutoSize = true,
-        AutoSizeMode = AutoSizeMode.GrowAndShrink,
-        Height = 28,
-        MinimumSize = new Size(56, 28),
-        Padding = new Padding(7, 2, 7, 2),
         Margin = new Padding(0, 0, 5, 3),
     };
+
+    private void ApplyResponsiveDimensions()
+    {
+        var buttonHeight = AppTheme.RecommendedInputHeight(this, 32);
+
+        _chatSendButton.Size = new Size(Math.Max(AppTheme.Scale(this, 82), AppTheme.MeasureButtonWidth(this, "Send")), buttonHeight);
+        _joinRoomButton.Size = new Size(Math.Max(AppTheme.Scale(this, 108), AppTheme.MeasureButtonWidth(this, "Join room")), buttonHeight);
+
+        var readyWidth = Math.Max(AppTheme.Scale(this, 168), AppTheme.MeasureButtonWidth(_readyCheckBox, "I'm ready to watch!", "✓ Ready to watch"));
+        _readyCheckBox.Size = new Size(readyWidth, Math.Max(AppTheme.Scale(this, 34), buttonHeight));
+
+        _autoPlayMinUsers.Width = AppTheme.Scale(this, 56);
+
+        foreach (var button in new[] { _addFilesButton, _addUrlButton, _playPlaylistButton, _removePlaylistButton, _shufflePlaylistButton })
+        {
+            var width = Math.Max(AppTheme.Scale(this, 68), AppTheme.MeasureButtonWidth(button, button.Text));
+            button.Size = new Size(width, buttonHeight);
+        }
+
+        _viewerColumn.Width = AppTheme.Scale(this, 132);
+        _statusColumn.Width = AppTheme.Scale(this, 136);
+        _lengthColumn.Width = AppTheme.Scale(this, 78);
+        _sizeColumn.Width = AppTheme.Scale(this, 74);
+    }
 
     private Control BuildLayout()
     {
@@ -408,8 +457,10 @@ internal sealed class WatchPartyPanel : Panel
             Margin = new Padding(0, 6, 0, 0),
         };
         chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78));
+        chatRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         chatRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _chatInput.Margin = new Padding(0, 2, 6, 2);
+        _chatSendButton.Margin = new Padding(0, 2, 0, 2);
         chatRow.Controls.Add(_chatInput, 0, 0);
         chatRow.Controls.Add(_chatSendButton, 1, 0);
         chatSection.Controls.Add(chatRow, 0, 2);
@@ -481,7 +532,7 @@ internal sealed class WatchPartyPanel : Panel
         };
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104));
+        headerRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         headerRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         headerRow.Controls.Add(new Label
@@ -491,30 +542,40 @@ internal sealed class WatchPartyPanel : Panel
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             Font = new Font("Segoe UI Semibold", 9.5F),
-            Margin = new Padding(0, 4, 8, 0),
+            Margin = new Padding(0, 0, 8, 0),
         }, 0, 0);
+        _roomCombo.Margin = new Padding(0, 2, 6, 2);
+        _joinRoomButton.Margin = new Padding(0, 2, 0, 2);
         headerRow.Controls.Add(_roomCombo, 1, 0);
         headerRow.Controls.Add(_joinRoomButton, 2, 0);
         section.Controls.Add(headerRow, 0, 0);
 
         section.Controls.Add(_userList, 0, 1);
 
-        var readinessRow = new FlowLayoutPanel
+        var readinessRow = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
             AutoSize = true,
-            WrapContents = true,
+            ColumnCount = 4,
+            RowCount = 1,
             Margin = new Padding(0, 6, 0, 0),
         };
-        readinessRow.Controls.Add(_readyCheckBox);
-        readinessRow.Controls.Add(_autoPlayCheckBox);
+        for (var col = 0; col < 4; col++)
+            readinessRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        readinessRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _readyCheckBox.Margin = new Padding(0);
+        readinessRow.Controls.Add(_readyCheckBox, 0, 0);
+        readinessRow.Controls.Add(_autoPlayCheckBox, 1, 0);
         readinessRow.Controls.Add(new Label
         {
             Text = "Min:",
+            UseMnemonic = false,
             AutoSize = true,
-            Margin = new Padding(8, 7, 2, 0),
-        });
-        readinessRow.Controls.Add(_autoPlayMinUsers);
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(6, 0, 4, 0),
+        }, 2, 0);
+        readinessRow.Controls.Add(_autoPlayMinUsers, 3, 0);
         section.Controls.Add(readinessRow, 0, 2);
 
         return section;
@@ -693,6 +754,9 @@ internal sealed class WatchPartyPanel : Panel
 
     private void SubmitChat()
     {
+        if (!_isActive)
+            return;
+
         var text = _chatInput.Text.Trim();
         if (string.IsNullOrEmpty(text))
             return;
@@ -703,6 +767,9 @@ internal sealed class WatchPartyPanel : Panel
 
     private void SubmitJoinRoom()
     {
+        if (!_isActive)
+            return;
+
         var room = _roomCombo.Text.Trim();
         if (!string.IsNullOrEmpty(room))
             JoinRoomRequested?.Invoke(this, room);
@@ -772,27 +839,8 @@ internal sealed class WatchPartyPanel : Panel
 
     private void UpdateReadyButtonVisual()
     {
-        if (_readyCheckBox.Checked)
-        {
-            _readyCheckBox.Text = "✓ Ready to watch";
-            _readyCheckBox.FlatStyle = _palette.IsDark ? FlatStyle.Flat : FlatStyle.Standard;
-            _readyCheckBox.UseVisualStyleBackColor = false;
-            _readyCheckBox.BackColor = _palette.ReadyBack;
-            _readyCheckBox.ForeColor = _palette.ReadyFore;
-            if (_palette.IsDark)
-            {
-                _readyCheckBox.FlatAppearance.BorderSize = 1;
-                _readyCheckBox.FlatAppearance.BorderColor = Color.FromArgb(62, 148, 96);
-                _readyCheckBox.FlatAppearance.CheckedBackColor = _palette.ReadyBack;
-                _readyCheckBox.FlatAppearance.MouseOverBackColor = Color.FromArgb(44, 104, 66);
-            }
-        }
-        else
-        {
-            _readyCheckBox.Text = "I'm ready to watch!";
-            _readyCheckBox.FlatAppearance.CheckedBackColor = _palette.ButtonBack;
-            AppTheme.StyleButton(_readyCheckBox, _palette);
-        }
+        _readyCheckBox.Text = _readyCheckBox.Checked ? "✓ Ready to watch" : "I'm ready to watch!";
+        _readyCheckBox.ApplyTheme(_palette);
     }
 
     private void SetAutoPlayChecked(bool enabled)
@@ -806,7 +854,7 @@ internal sealed class WatchPartyPanel : Panel
             return;
 
         var fixedWidth = _viewerColumn.Width + _statusColumn.Width + _lengthColumn.Width + _sizeColumn.Width;
-        var remaining = _userList.ClientSize.Width - fixedWidth - 4;
+        var remaining = _userList.ClientSize.Width - fixedWidth - 2;
         if (remaining > 90)
             _movieColumn.Width = remaining;
     }
@@ -814,7 +862,7 @@ internal sealed class WatchPartyPanel : Panel
     private void ResizePlaylistColumn()
     {
         if (_playlistView.ClientSize.Width > 30)
-            _playlistColumn.Width = Math.Max(80, _playlistView.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 6);
+            _playlistColumn.Width = Math.Max(80, _playlistView.ClientSize.Width - 2);
     }
 
     private void AppendEntry(RichTextBox box, List<LogEntry> entries, LogEntry entry)
