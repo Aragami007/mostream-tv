@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to MoStream TV are documented here.
+All notable changes to Mostream TV are documented here.
+
+## 0.5.2 - 2026-11-11
+
+### Changed
+
+- Updated branding, window/dialog titles, assembly product metadata, embedded runtime messages, documentation, and project/output filenames to **Mostream TV** (`MostreamTV.Host`).
 
 ## 0.5.1 - 2026-11-11
 
@@ -16,7 +22,7 @@ All notable changes to MoStream TV are documented here.
 - Removed the inline playback transport bar (`Play`, `Pause`, `Seek`, `Undo`, `Open movie`, `Open URL`) and instructional status banner from the **Watch party** panel.
 - Separated **Chat** and **Activity log** into dedicated stacked panels so viewer conversation and sync/room events remain easy to follow independently.
 - Removed unnecessary "no Hamachi needed" / "no router setup" promotional wording from the application UI.
-- Applied custom MoStream TV branding (`Assets\mostream.ico` and `Assets\mostream-32.png` / `Assets\mostream-16.png`) across the window icon, header bar, dialogs, and compiled executable.
+- Applied custom Mostream TV branding (`Assets\mostream.ico` and `Assets\mostream-32.png` / `Assets\mostream-16.png`) across the window icon, header bar, dialogs, and compiled executable.
 - Added Light and Dark themes (`AppTheme`) persisted across launches, toggled via a subtle icon-only button in the top-right header bar.
 
 ## 0.4.1 - 2026-11-11
@@ -44,7 +50,7 @@ All notable changes to MoStream TV are documented here.
 
 ### Added
 
-- **Join watch party** mode inside MoStream TV with fields for friend's server address (supports `host` or `host:port`), TCP port, room name, display name, and optional password.
+- **Join watch party** mode inside Mostream TV with fields for friend's server address (supports `host` or `host:port`), TCP port, room name, display name, and optional password.
 - **Paste invite** helper to auto-fill server, port, room, and password from a friend's copied join details.
 - Immediate error reporting and cleanup when joining with an incorrect password or unreachable server.
 
@@ -52,7 +58,7 @@ All notable changes to MoStream TV are documented here.
 
 ### Changed
 
-- Integrated and rebranded the watch-party client directly inside the single MoStream TV Windows Forms window using the native UI style.
+- Integrated and rebranded the watch-party client directly inside the single Mostream TV Windows Forms window using the native UI style.
 - Removed the separate Syncplay GUI launch so no standalone Syncplay window opens.
 - Added in-app movie selection, stream URL opening, playback controls (play, pause, seek, undo seek), activity/chat feed, room/participant list, readiness and auto-play controls, shared playlist management, and drag-and-drop file support.
 

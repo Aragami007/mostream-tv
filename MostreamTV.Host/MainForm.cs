@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
-using MoStreamTV.Host.Hosting;
-using MoStreamTV.Host.Networking;
-using MoStreamTV.Host.UI;
+using MostreamTV.Host.Hosting;
+using MostreamTV.Host.Networking;
+using MostreamTV.Host.UI;
 
-namespace MoStreamTV.Host;
+namespace MostreamTV.Host;
 
 internal sealed class MainForm : Form
 {
@@ -138,7 +138,7 @@ internal sealed class MainForm : Form
         _clientSession = new SyncplayClientSession(_runtime);
         _isDarkTheme = AppTheme.LoadDarkPreference();
 
-        Text = "MoStream TV";
+        Text = "Mostream TV";
         Icon = BrandAssets.AppIcon;
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10F);
@@ -322,7 +322,7 @@ internal sealed class MainForm : Form
         };
         var titleLabel = new Label
         {
-            Text = "MoStream TV",
+            Text = "Mostream TV",
             UseMnemonic = false,
             AutoSize = true,
             Anchor = AnchorStyles.Left,
@@ -619,7 +619,7 @@ internal sealed class MainForm : Form
             MessageBox.Show(
                 this,
                 "Copy your friend's invite details (Server, Room, Password) to your clipboard, then click Paste invite.",
-                "MoStream TV",
+                "Mostream TV",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
             return;
@@ -703,7 +703,7 @@ internal sealed class MainForm : Form
             MessageBox.Show(
                 this,
                 "Could not find Server, Room, or Password in the clipboard text.",
-                "MoStream TV",
+                "Mostream TV",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
@@ -832,7 +832,7 @@ internal sealed class MainForm : Form
                 _activeConfiguration = configuration;
                 UpdateJoinDetails(configuration);
                 SetBusy(true, configuration.IsHost
-                    ? "Starting MoStream TV watch party and opening media player..."
+                    ? "Starting Mostream TV watch party and opening media player..."
                     : $"Joining {configuration.FormatTargetEndpoint()} and opening media player...");
 
                 await _clientSession.StartAsync(
@@ -1087,7 +1087,7 @@ internal sealed class MainForm : Form
             SetRunningState(IsSessionRunning);
             _watchPartyPanel.SetActive(_clientSession.IsRunning);
             _status.Text = IsSessionRunning ? "Watch party is running" : "Watch party is off";
-            MessageBox.Show(this, exception.Message, "MoStream TV", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, exception.Message, "Mostream TV", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 

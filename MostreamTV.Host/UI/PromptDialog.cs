@@ -1,4 +1,4 @@
-namespace MoStreamTV.Host.UI;
+namespace MostreamTV.Host.UI;
 
 internal static class PromptDialog
 {

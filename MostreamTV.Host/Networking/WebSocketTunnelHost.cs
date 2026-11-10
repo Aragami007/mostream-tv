@@ -6,15 +6,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MoStreamTV.Host.Networking;
+namespace MostreamTV.Host.Networking;
 
 internal sealed partial class WebSocketTunnelHost : IAsyncDisposable
 {
     private const string WebSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     private const string BrowserInfoHtml =
         "<!doctype html><html><body style=\"font-family:Segoe UI,sans-serif;padding:24px\">" +
-        "<h2>MoStream TV Watch Party Tunnel</h2>" +
-        "<p>Copy this address (using <b>wss://</b>) and click <b>Paste invite</b> under <b>Join watch party</b> in MoStream TV.</p>" +
+        "<h2>Mostream TV Watch Party Tunnel</h2>" +
+        "<p>Copy this address (using <b>wss://</b>) and click <b>Paste invite</b> under <b>Join watch party</b> in Mostream TV.</p>" +
         "</body></html>";
 
     private readonly CloudflaredRuntime _runtime;

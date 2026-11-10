@@ -3,7 +3,7 @@
 ## System shape
 
 ```text
-MoStream TV Window (MainForm + WatchPartyPanel)
+Mostream TV Window (MainForm + WatchPartyPanel)
         |                             |
         | (Host mode)                 | (Host & Join modes)
         v                             v
@@ -19,7 +19,7 @@ syncplayServer.exe            SyncplayConsole.exe --no-gui (MOSTREAM_BRIDGE=1)
   wss:// tunnel & LAN peers   local media player (VLC, mpv, mpv.net, MPC-HC, MPC-BE)
 ```
 
-MoStream TV provides a single unified Windows Forms UI for hosting a private watch party (over the Internet without Hamachi or on a local network) and joining a friend's watch party without opening a separate Syncplay GUI window.
+Mostream TV provides a single unified Windows Forms UI for hosting a private watch party (over the Internet without Hamachi or on a local network) and joining a friend's watch party without opening a separate Syncplay GUI window.
 
 ## Modules
 

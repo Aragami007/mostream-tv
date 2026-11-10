@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem in MoStream TV.
+description: Report a reproducible problem in Mostream TV.
 title: "[Bug]: "
 labels: [bug]
 body:
@@ -9,7 +9,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: MoStream TV version
+      label: Mostream TV version
       placeholder: 0.1.0
     validations:
       required: true

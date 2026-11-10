@@ -5,17 +5,18 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>MoStreamTV.Host</AssemblyName>
-    <RootNamespace>MoStreamTV.Host</RootNamespace>
-    <Version>0.5.1</Version>
+    <AssemblyName>MostreamTV.Host</AssemblyName>
+    <RootNamespace>MostreamTV.Host</RootNamespace>
+    <Product>Mostream TV</Product>
+    <Version>0.5.2</Version>
     <ApplicationIcon>Assets\mostream.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\mostream.ico" LogicalName="MoStreamTV.Host.Assets.mostream.ico" />
-    <EmbeddedResource Include="Assets\mostream-32.png" LogicalName="MoStreamTV.Host.Assets.mostream-32.png" />
-    <EmbeddedResource Include="Assets\mostream-16.png" LogicalName="MoStreamTV.Host.Assets.mostream-16.png" />
-    <EmbeddedResource Include="Hosting\Bridge\consoleUI.py" LogicalName="MoStreamTV.Host.Bridge.consoleUI.py" />
+    <EmbeddedResource Include="Assets\mostream.ico" LogicalName="MostreamTV.Host.Assets.mostream.ico" />
+    <EmbeddedResource Include="Assets\mostream-32.png" LogicalName="MostreamTV.Host.Assets.mostream-32.png" />
+    <EmbeddedResource Include="Assets\mostream-16.png" LogicalName="MostreamTV.Host.Assets.mostream-16.png" />
+    <EmbeddedResource Include="Hosting\Bridge\consoleUI.py" LogicalName="MostreamTV.Host.Bridge.consoleUI.py" />
     <Content Include="..\vendor\Syncplay_1.7.6_Portable.zip" Link="runtime\Syncplay_1.7.6_Portable.zip">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

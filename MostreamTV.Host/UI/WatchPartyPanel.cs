@@ -1,6 +1,6 @@
-using MoStreamTV.Host.Hosting;
+using MostreamTV.Host.Hosting;
 
-namespace MoStreamTV.Host.UI;
+namespace MostreamTV.Host.UI;
 
 internal sealed class WatchPartyPanel : Panel
 {

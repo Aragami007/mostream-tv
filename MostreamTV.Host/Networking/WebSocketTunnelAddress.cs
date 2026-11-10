@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text.Json;
 
-namespace MoStreamTV.Host.Networking;
+namespace MostreamTV.Host.Networking;
 
 internal static class WebSocketTunnelAddress
 {

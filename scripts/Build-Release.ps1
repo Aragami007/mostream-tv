@@ -1,12 +1,12 @@
 param(
-    [string]$Version = "0.5.1"
+    [string]$Version = "0.5.2"
 )
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $artifactsRoot = Join-Path $repositoryRoot "artifacts"
-$stagingRoot = Join-Path $artifactsRoot "staging\MoStreamTV.Host"
-$archivePath = Join-Path $artifactsRoot "MoStreamTV.Host-$Version-windows.zip"
+$stagingRoot = Join-Path $artifactsRoot "staging\MostreamTV.Host"
+$archivePath = Join-Path $artifactsRoot "MostreamTV.Host-$Version-windows.zip"
 $vendorArchive = Join-Path $repositoryRoot "vendor\Syncplay_1.7.6_Portable.zip"
 
 if (-not (Test-Path -LiteralPath $vendorArchive)) {
@@ -22,7 +22,7 @@ if (Test-Path -LiteralPath $stagingRoot) {
     Remove-Item -LiteralPath $resolvedStaging -Recurse -Force
 }
 
-dotnet publish (Join-Path $repositoryRoot "MoStreamTV.Host\MoStreamTV.Host.csproj") `
+dotnet publish (Join-Path $repositoryRoot "MostreamTV.Host\MostreamTV.Host.csproj") `
     --configuration Release `
     --output $stagingRoot
 

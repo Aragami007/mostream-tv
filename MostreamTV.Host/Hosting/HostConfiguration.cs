@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
-using MoStreamTV.Host.Networking;
+using MostreamTV.Host.Networking;
 
-namespace MoStreamTV.Host.Hosting;
+namespace MostreamTV.Host.Hosting;
 
 internal enum WatchPartyMode
 {

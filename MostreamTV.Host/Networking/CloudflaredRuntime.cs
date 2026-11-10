@@ -1,6 +1,6 @@
 using System.Net.Http;
 
-namespace MoStreamTV.Host.Networking;
+namespace MostreamTV.Host.Networking;
 
 internal sealed class CloudflaredRuntime
 {

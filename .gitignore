@@ -7,7 +7,7 @@
 
 # Published runtime is available once in vendor/ inside the repository.
 # Release archives still include it beside the executable.
-/dist/MoStreamTV.Host/runtime/
+/dist/MostreamTV.Host/runtime/
 /dist/**/*.pdb
 
 # IDE and user-local files

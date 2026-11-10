@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 
-namespace MoStreamTV.Host.Hosting;
+namespace MostreamTV.Host.Hosting;
 
 internal sealed class SyncplayHost : IAsyncDisposable
 {

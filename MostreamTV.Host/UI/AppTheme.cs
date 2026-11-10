@@ -3,13 +3,13 @@ using System.Drawing.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace MoStreamTV.Host.UI;
+namespace MostreamTV.Host.UI;
 
 internal static class BrandAssets
 {
-    private const string IconResource = "MoStreamTV.Host.Assets.mostream.ico";
-    private const string Logo32Resource = "MoStreamTV.Host.Assets.mostream-32.png";
-    private const string Logo16Resource = "MoStreamTV.Host.Assets.mostream-16.png";
+    private const string IconResource = "MostreamTV.Host.Assets.mostream.ico";
+    private const string Logo32Resource = "MostreamTV.Host.Assets.mostream-32.png";
+    private const string Logo16Resource = "MostreamTV.Host.Assets.mostream-16.png";
 
     private static Icon? _cachedIcon;
     private static Image? _cachedLogo32;

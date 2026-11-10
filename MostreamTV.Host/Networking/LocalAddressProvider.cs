@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
-namespace MoStreamTV.Host.Networking;
+namespace MostreamTV.Host.Networking;
 
 internal static class LocalAddressProvider
 {

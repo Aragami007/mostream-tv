@@ -1,4 +1,4 @@
-namespace MoStreamTV.Host;
+namespace MostreamTV.Host;
 
 internal static class Program
 {

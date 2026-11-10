@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for helping improve MoStream TV.
+Thanks for helping improve Mostream TV.
 
 ## Development setup
 
 1. Install the .NET 8 SDK or newer on Windows.
 2. Confirm `vendor/Syncplay_1.7.6_Portable.zip` is present.
-3. Run `dotnet build .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release`.
-4. Run the application from `MoStreamTV.Host\bin\Release\net8.0-windows\`.
+3. Run `dotnet build .\MostreamTV.Host\MostreamTV.Host.csproj -c Release`.
+4. Run the application from `MostreamTV.Host\bin\Release\net8.0-windows\`.
 
 ## Pull requests
 
@@ -19,4 +19,4 @@ Thanks for helping improve MoStream TV.
 
 ## Reporting issues
 
-Include the MoStream TV version, Windows version, whether the friend is on LAN or the Internet, and the exact error message. Redact public IP addresses and passwords.
+Include the Mostream TV version, Windows version, whether the friend is on LAN or the Internet, and the exact error message. Redact public IP addresses and passwords.

@@ -19,11 +19,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Build
-        run: dotnet build .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release
+        run: dotnet build .\MostreamTV.Host\MostreamTV.Host.csproj -c Release
       - name: Publish
-        run: dotnet publish .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release --no-build -o .\publish
+        run: dotnet publish .\MostreamTV.Host\MostreamTV.Host.csproj -c Release --no-build -o .\publish
       - uses: actions/upload-artifact@v7
         with:
-          name: MoStreamTV.Host-windows
+          name: MostreamTV.Host-windows
           path: publish/
           if-no-files-found: error

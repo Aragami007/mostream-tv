@@ -3,12 +3,12 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MoStreamTV.Host.Hosting;
+namespace MostreamTV.Host.Hosting;
 
 internal sealed class SyncplayRuntime
 {
     private const string Version = "1.7.6";
-    private const string BridgeResourceName = "MoStreamTV.Host.Bridge.consoleUI.py";
+    private const string BridgeResourceName = "MostreamTV.Host.Bridge.consoleUI.py";
     private const string BridgeEntryPy = "syncplay/ui/consoleUI.py";
     private const string BridgeEntryPyc = "syncplay/ui/consoleUI.pyc";
 
@@ -54,7 +54,7 @@ internal sealed class SyncplayRuntime
 
         if (!File.Exists(_archivePath))
             throw new FileNotFoundException(
-                "The bundled watch-party runtime is missing. Rebuild or reinstall MoStream TV.",
+                "The bundled watch-party runtime is missing. Rebuild or reinstall Mostream TV.",
                 _archivePath);
 
         Directory.CreateDirectory(_installDirectory);

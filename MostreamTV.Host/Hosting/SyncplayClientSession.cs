@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using MoStreamTV.Host.Networking;
+using MostreamTV.Host.Networking;
 
-namespace MoStreamTV.Host.Hosting;
+namespace MostreamTV.Host.Hosting;
 
 internal sealed record WatchPartyUser(
     string Username,
@@ -173,7 +173,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
             process.Dispose();
             _connectTcs = null;
             await DisposeTunnelClientAsync();
-            throw new InvalidOperationException("Windows could not start the MoStream TV watch-party engine.");
+            throw new InvalidOperationException("Windows could not start the Mostream TV watch-party engine.");
         }
 
         _process = process;

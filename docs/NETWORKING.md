@@ -9,11 +9,11 @@ When **Share over Internet (no Hamachi / no router setup)** is checked:
 3. **Host privacy & security**: Traffic between the joining friend and Cloudflare edge is TLS-encrypted (`wss://`), and Cloudflare communicates with the host over an authenticated outbound `cloudflared` tunnel. Each session gets a new random subdomain and generated server password, and the tunnel closes automatically when the watch party stops.
 
 > [!NOTE]
-> The first time a host computer uses **Share over Internet**, MoStream TV downloads the official `cloudflared.exe` binary from Cloudflare's GitHub Releases into `%LOCALAPPDATA%\MoStreamTV\Runtime\cloudflared.exe`. You can uncheck **Share over Internet** at any time to run purely on your local network without downloading or starting the tunnel.
+> The first time a host computer uses **Share over Internet**, Mostream TV downloads the official `cloudflared.exe` binary from Cloudflare's GitHub Releases into `%LOCALAPPDATA%\MoStreamTV\Runtime\cloudflared.exe`. You can uncheck **Share over Internet** at any time to run purely on your local network without downloading or starting the tunnel.
 
 ## Same LAN
 
-MoStream TV displays a `LAN: <ip>:<port>` address alongside the tunnel URL (or under `Server:` when **Share over Internet** is unchecked), prioritizing physical Wi-Fi and Ethernet adapters over virtual VPN/tunnel adapters. Friends on the same routed network can connect directly using that IP and TCP port.
+Mostream TV displays a `LAN: <ip>:<port>` address alongside the tunnel URL (or under `Server:` when **Share over Internet** is unchecked), prioritizing physical Wi-Fi and Ethernet adapters over virtual VPN/tunnel adapters. Friends on the same routed network can connect directly using that IP and TCP port.
 
 If a LAN connection fails, check:
 

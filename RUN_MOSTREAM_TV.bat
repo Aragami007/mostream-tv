@@ -1,10 +1,10 @@
 @echo off
 setlocal
-set "APP=%~dp0dist\MoStreamTV.Host\MoStreamTV.Host.exe"
+set "APP=%~dp0dist\MostreamTV.Host\MostreamTV.Host.exe"
 
 if not exist "%APP%" (
-  echo MoStream TV has not been published yet.
-  echo Run: dotnet publish .\MoStreamTV.Host\MoStreamTV.Host.csproj -c Release -o .\dist\MoStreamTV.Host
+  echo Mostream TV has not been published yet.
+  echo Run: dotnet publish .\MostreamTV.Host\MostreamTV.Host.csproj -c Release -o .\dist\MostreamTV.Host
   pause
   exit /b 1
 )

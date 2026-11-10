@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 
-namespace MoStreamTV.Host.Networking;
+namespace MostreamTV.Host.Networking;
 
 internal sealed class WebSocketTunnelClient : IAsyncDisposable
 {

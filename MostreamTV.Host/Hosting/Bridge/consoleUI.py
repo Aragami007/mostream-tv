@@ -28,7 +28,7 @@ def _sanitize_text(text):
         return ""
     cleaned = _HTML_TAG_RE.sub("", str(text))
     cleaned = cleaned.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
-    cleaned = re.sub(r"\bSyncplay\b", "MoStream TV", cleaned)
+    cleaned = re.sub(r"\bSyncplay\b", "Mostream TV", cleaned)
     return cleaned
 
 
@@ -46,14 +46,14 @@ def _rebrand_messages():
             "VLC could not load the playback synchronization interface. "
             "Try restarting the watch party or selecting mpv."
         ),
-        "media-directory-list-updated-notification": "MoStream TV media folders have been updated.",
-        "switch-file-not-found-error": "Could not find '{}' locally. Select your local copy in MoStream TV.",
+        "media-directory-list-updated-notification": "Mostream TV media folders have been updated.",
+        "switch-file-not-found-error": "Could not find '{}' locally. Select your local copy in Mostream TV.",
         "cannot-find-file-for-playlist-switch-error": (
             "Could not find '{}' locally to switch playback. "
-            "Choose your local copy in MoStream TV."
+            "Choose your local copy in Mostream TV."
         ),
         "mpv-unresponsive-error": "mpv has not responded for {} seconds. Please restart the watch party.",
-        "alphakey-mode-warning-second-line": "Press [TAB] to return to MoStream TV chat mode.",
+        "alphakey-mode-warning-second-line": "Press [TAB] to return to Mostream TV chat mode.",
         "startTLS-server-certificate-invalid": "Secure connection failed because the server certificate could not be verified.",
         "startTLS-server-certificate-invalid-DNS-ID": "The server certificate is not valid for this hostname.",
         "no-media-directories-error": "No media folders are configured.",
@@ -65,7 +65,7 @@ def _rebrand_messages():
             if key in overrides:
                 table[key] = overrides[key]
             elif isinstance(value, str) and "Syncplay" in value and "http" not in value:
-                table[key] = value.replace("Syncplay", "MoStream TV")
+                table[key] = value.replace("Syncplay", "Mostream TV")
 
 
 class _LegacyConsoleUI(threading.Thread):
