@@ -2,6 +2,18 @@
 
 All notable changes to MoStream TV are documented here.
 
+## 0.4.0 - 2026-11-11
+
+### Added
+
+- Built-in Internet watch-party tunnel (`Share over Internet (no Hamachi / no router setup)`) powered by a pure-.NET WebSocket-to-TCP bridge and Cloudflare Quick Tunnels (`wss://*.trycloudflare.com`), allowing friends to watch together over the Internet without Hamachi or router port forwarding.
+- One-time automatic `cloudflared.exe` setup in `%LOCALAPPDATA%\MoStreamTV\Runtime` on host computers (friends joining via `wss://...` links require zero extra downloads).
+- IPv4-first DoH resolution and retry logic in the join tunnel client (`WebSocketTunnelClient`), plus improved `LocalAddressProvider` scoring that prioritizes real Wi-Fi/Ethernet LAN adapters over virtual VPN/Hamachi adapters.
+
+### Fixed
+
+- Guarded incoming chat and OSD callbacks in `consoleUI.py` before media player initialization finishes, preventing `'NoneType' object has no attribute 'chatOSDSupported'` disconnects when chat messages arrive immediately after joining.
+
 ## 0.3.0 - 2026-11-11
 
 ### Added

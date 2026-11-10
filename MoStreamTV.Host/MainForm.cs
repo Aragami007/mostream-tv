@@ -8,9 +8,10 @@ namespace MoStreamTV.Host;
 internal sealed class MainForm : Form
 {
     private const string MovieFileFilter = "Video files|*.mkv;*.mp4;*.avi;*.mov;*.webm;*.m4v;*.wmv;*.mpg;*.mpeg|All files|*.*";
-    private const string IdleHostPlaceholder = "Start the watch party to see the server address, room, and password to share with friends.";
-    private const string IdleJoinPlaceholder = "Enter your friend's server address, room name, and password (or click Paste invite), then click Join watch party.";
-    private const string HostServerDisplayText = "This computer (private server)";
+    private const string IdleHostPlaceholder = "Start the watch party to get a shareable wss:// link (no Hamachi needed), room, and password.";
+    private const string IdleJoinPlaceholder = "Paste your friend's invite link (wss://...) or IP, room, and password, then click Join watch party.";
+    private const string HostInternetServerDisplayText = "This computer (built-in Internet tunnel + LAN)";
+    private const string HostLanServerDisplayText = "This computer (LAN / Wi-Fi only)";
 
     private readonly RadioButton _hostModeRadio = new()
     {
@@ -28,13 +29,22 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI Semibold", 9.5F),
         Margin = new Padding(16, 3, 3, 3),
     };
+    private readonly CheckBox _shareOverInternetCheckBox = new()
+    {
+        Text = "Share over Internet (no Hamachi / no router setup)",
+        UseMnemonic = false,
+        AutoSize = true,
+        Checked = true,
+        Anchor = AnchorStyles.Left,
+        Margin = new Padding(3, 2, 3, 4),
+    };
 
     private readonly TextBox _serverHost = new()
     {
         Dock = DockStyle.Fill,
         Enabled = false,
-        Text = HostServerDisplayText,
-        PlaceholderText = "Friend's server IP or host (e.g. 192.168.1.25 or 192.168.1.25:8999)",
+        Text = HostInternetServerDisplayText,
+        PlaceholderText = "Friend's invite link (wss://...) or IP (e.g. 192.168.1.25:8999)",
     };
     private readonly Button _pasteInviteButton = new()
     {
@@ -83,12 +93,23 @@ internal sealed class MainForm : Form
         ScrollBars = ScrollBars.None,
         Text = IdleHostPlaceholder,
     };
+    private readonly Label _inviteHintLabel = new()
+    {
+        Dock = DockStyle.Top,
+        AutoSize = false,
+        Height = 52,
+        ForeColor = SystemColors.GrayText,
+        Padding = new Padding(0, 4, 0, 0),
+    };
 
     private readonly WatchPartyPanel _watchPartyPanel = new();
     private readonly SyncplayRuntime _runtime;
     private readonly SyncplayHost _host;
+    private readonly CloudflaredRuntime _cloudflaredRuntime;
+    private readonly WebSocketTunnelHost _tunnelHost;
     private readonly SyncplayClientSession _clientSession;
     private HostConfiguration? _activeConfiguration;
+    private CancellationTokenSource? _startupCts;
     private string _hostPassword;
     private string _joinHost = string.Empty;
     private string _joinPassword = string.Empty;
@@ -99,6 +120,8 @@ internal sealed class MainForm : Form
     {
         _runtime = new SyncplayRuntime();
         _host = new SyncplayHost(_runtime);
+        _cloudflaredRuntime = new CloudflaredRuntime();
+        _tunnelHost = new WebSocketTunnelHost(_cloudflaredRuntime);
         _clientSession = new SyncplayClientSession(_runtime);
 
         Text = "MoStream TV";
@@ -119,11 +142,13 @@ internal sealed class MainForm : Form
     }
 
     private bool IsHostMode => _hostModeRadio.Checked;
-    private bool IsSessionRunning => _host.IsRunning || _clientSession.IsRunning;
+    private bool IsSessionRunning => _host.IsRunning || _tunnelHost.IsRunning || _clientSession.IsRunning;
 
     private void WireEvents()
     {
         _hostModeRadio.CheckedChanged += ModeRadioOnCheckedChanged;
+        _shareOverInternetCheckBox.CheckedChanged += (_, _) => ApplyModeUi(focusServerField: false);
+        _serverHost.TextChanged += (_, _) => UpdatePortEnabledState();
         _pasteInviteButton.Click += PasteInviteButtonOnClick;
         _showPasswordCheckBox.CheckedChanged += (_, _) => _password.UseSystemPasswordChar = !_showPasswordCheckBox.Checked;
         _browseButton.Click += BrowseButtonOnClick;
@@ -137,6 +162,7 @@ internal sealed class MainForm : Form
         DragDrop += MainFormOnDragDrop;
 
         _host.ServerExited += HostOnServerExited;
+        _tunnelHost.TunnelExited += TunnelHostOnTunnelExited;
 
         _clientSession.MessageReceived += (_, msg) => SafeBeginInvoke(() =>
         {
@@ -252,13 +278,13 @@ internal sealed class MainForm : Form
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 4,
-            RowCount = 6,
+            RowCount = 7,
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        for (var row = 0; row < 6; row++)
+        for (var row = 0; row < 7; row++)
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var modePanel = new FlowLayoutPanel
@@ -266,7 +292,7 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             AutoSize = true,
             WrapContents = false,
-            Margin = new Padding(0, 0, 0, 4),
+            Margin = new Padding(0, 0, 0, 2),
         };
         modePanel.Controls.Add(_hostModeRadio);
         modePanel.Controls.Add(_joinModeRadio);
@@ -274,13 +300,17 @@ internal sealed class MainForm : Form
         layout.Controls.Add(modePanel, 1, 0);
         layout.SetColumnSpan(modePanel, 3);
 
+        layout.Controls.Add(new Label { Text = "Internet", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        layout.Controls.Add(_shareOverInternetCheckBox, 1, 1);
+        layout.SetColumnSpan(_shareOverInternetCheckBox, 3);
+
         var serverPicker = BuildFilePickerRow(_serverHost, _pasteInviteButton);
-        layout.Controls.Add(new Label { Text = "Server address", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
-        layout.Controls.Add(serverPicker, 1, 1);
+        layout.Controls.Add(new Label { Text = "Server address", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+        layout.Controls.Add(serverPicker, 1, 2);
         layout.SetColumnSpan(serverPicker, 3);
 
-        AddField(layout, 2, 0, "Room name", _roomName);
-        AddField(layout, 2, 2, "Your name", _hostName);
+        AddField(layout, 3, 0, "Room name", _roomName);
+        AddField(layout, 3, 2, "Your name", _hostName);
 
         var passwordPanel = new TableLayoutPanel { Dock = DockStyle.Fill, Height = 30, ColumnCount = 2, RowCount = 1, Margin = new Padding(3, 2, 12, 4) };
         passwordPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -288,19 +318,19 @@ internal sealed class MainForm : Form
         passwordPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         passwordPanel.Controls.Add(_password, 0, 0);
         passwordPanel.Controls.Add(_showPasswordCheckBox, 1, 0);
-        layout.Controls.Add(new Label { Text = "Password", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 3);
-        layout.Controls.Add(passwordPanel, 1, 3);
+        layout.Controls.Add(new Label { Text = "Password", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 4);
+        layout.Controls.Add(passwordPanel, 1, 4);
 
-        AddField(layout, 3, 2, "TCP port", _port);
+        AddField(layout, 4, 2, "TCP port", _port);
 
         var filePicker = BuildFilePickerRow(_mediaPath, _browseButton);
-        layout.Controls.Add(new Label { Text = "Movie file", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 4);
-        layout.Controls.Add(filePicker, 1, 4);
+        layout.Controls.Add(new Label { Text = "Movie file", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 5);
+        layout.Controls.Add(filePicker, 1, 5);
         layout.SetColumnSpan(filePicker, 3);
 
         var playerPicker = BuildFilePickerRow(_playerPath, _browsePlayerButton);
-        layout.Controls.Add(new Label { Text = "Media player", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 5);
-        layout.Controls.Add(playerPicker, 1, 5);
+        layout.Controls.Add(new Label { Text = "Media player", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 6);
+        layout.Controls.Add(playerPicker, 1, 6);
         layout.SetColumnSpan(playerPicker, 3);
 
         group.Controls.Add(layout);
@@ -318,7 +348,7 @@ internal sealed class MainForm : Form
             Margin = new Padding(3, 2, 3, 4),
         };
         picker.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        picker.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+        picker.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 156));
         picker.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         picker.Controls.Add(pathBox, 0, 0);
         picker.Controls.Add(browseButton, 1, 0);
@@ -368,15 +398,7 @@ internal sealed class MainForm : Form
         inviteLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         inviteLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         inviteLayout.Controls.Add(_joinDetails, 0, 0);
-        inviteLayout.Controls.Add(new Label
-        {
-            Text = "LAN friends connect directly. Over the Internet, forward this TCP port in your router.",
-            Dock = DockStyle.Top,
-            AutoSize = false,
-            Height = 44,
-            ForeColor = SystemColors.GrayText,
-            Padding = new Padding(0, 6, 0, 0),
-        }, 0, 1);
+        inviteLayout.Controls.Add(_inviteHintLabel, 0, 1);
         _inviteGroup.Controls.Add(inviteLayout);
         return _inviteGroup;
     }
@@ -414,28 +436,38 @@ internal sealed class MainForm : Form
     {
         if (IsHostMode)
         {
+            _shareOverInternetCheckBox.Enabled = !IsSessionRunning;
             _serverHost.Enabled = false;
-            _serverHost.Text = HostServerDisplayText;
+            _serverHost.Text = _shareOverInternetCheckBox.Checked
+                ? HostInternetServerDisplayText
+                : HostLanServerDisplayText;
             _pasteInviteButton.Enabled = false;
             _startButton.Text = "Start watch party";
             _stopButton.Text = "Stop watch party";
             _inviteGroup.Text = "Invite friends";
+            _inviteHintLabel.Text = _shareOverInternetCheckBox.Checked
+                ? "Send the wss:// link (no Hamachi needed), or LAN on the same Wi-Fi."
+                : "LAN friends use this IP and port. Forward TCP port for direct Internet.";
             if (!IsSessionRunning)
                 _joinDetails.Text = IdleHostPlaceholder;
         }
         else
         {
+            _shareOverInternetCheckBox.Enabled = false;
             _serverHost.Enabled = !IsSessionRunning;
             _serverHost.Text = _joinHost;
             _pasteInviteButton.Enabled = !IsSessionRunning;
             _startButton.Text = "Join watch party";
             _stopButton.Text = "Leave watch party";
             _inviteGroup.Text = "Friend's server details";
+            _inviteHintLabel.Text = "Paste the invite (wss://... or IP:port), room, and password, then click Join.";
             if (!IsSessionRunning)
                 _joinDetails.Text = IdleJoinPlaceholder;
             if (focusServerField && _serverHost.Enabled)
                 _serverHost.Focus();
         }
+
+        UpdatePortEnabledState();
     }
 
     private void PasteInviteButtonOnClick(object? sender, EventArgs eventArgs)
@@ -552,7 +584,8 @@ internal sealed class MainForm : Form
             _password.Text,
             mode == WatchPartyMode.Host ? decimal.ToInt32(_port.Value) : parsedPort,
             _mediaPath.Text.Trim(),
-            _playerPath.Text.Trim());
+            _playerPath.Text.Trim(),
+            mode == WatchPartyMode.Host && _shareOverInternetCheckBox.Checked);
     }
 
     private void BrowseButtonOnClick(object? sender, EventArgs eventArgs)
@@ -633,35 +666,70 @@ internal sealed class MainForm : Form
 
             _watchPartyPanel.ResetSessionLog();
 
-            if (configuration.IsHost)
-            {
-                SetBusy(true, "Starting private server...");
-                await _host.StartAsync(configuration);
-            }
+            _startupCts?.Cancel();
+            _startupCts?.Dispose();
+            var startupCts = new CancellationTokenSource();
+            _startupCts = startupCts;
 
             try
             {
+                if (configuration.IsHost)
+                {
+                    SetBusy(true, "Starting watch party server...");
+                    await _host.StartAsync(configuration, startupCts.Token);
+
+                    if (configuration.ShareOverInternet)
+                    {
+                        await _tunnelHost.StartAsync(
+                            configuration.Port,
+                            status => SafeBeginInvoke(() => _status.Text = status),
+                            startupCts.Token);
+                    }
+                }
+
                 _activeConfiguration = configuration;
                 UpdateJoinDetails(configuration);
                 SetBusy(true, configuration.IsHost
                     ? "Starting MoStream TV watch party and opening media player..."
                     : $"Joining {configuration.FormatTargetEndpoint()} and opening media player...");
-                await _clientSession.StartAsync(configuration);
+
+                await _clientSession.StartAsync(
+                    configuration,
+                    status => SafeBeginInvoke(() => _status.Text = status),
+                    startupCts.Token);
+
+                SetRunningState(true);
+                _watchPartyPanel.SetActive(true);
+                if (configuration.IsHost && _tunnelHost.IsRunning)
+                {
+                    _watchPartyPanel.AppendInfoMessage(
+                        DateTime.Now.ToString("HH:mm:ss"),
+                        $"Internet tunnel ready: {_tunnelHost.PublicWssUrl} (click Copy join details to share with friends; no Hamachi needed).");
+                    _status.Text = "Watch party is running (Internet tunnel + LAN ready)";
+                }
+                else
+                {
+                    _status.Text = configuration.IsHost
+                        ? "Watch party is running (LAN)"
+                        : $"Joined watch party on {configuration.FormatTargetEndpoint()}";
+                }
             }
             catch
             {
                 _activeConfiguration = null;
                 _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
+                await _clientSession.StopAsync();
+                await _tunnelHost.StopAsync();
                 if (configuration.IsHost)
                     await _host.StopAsync();
                 throw;
             }
-
-            SetRunningState(true);
-            _watchPartyPanel.SetActive(true);
-            _status.Text = configuration.IsHost
-                ? "Watch party is running"
-                : $"Joined watch party on {configuration.FormatTargetEndpoint()}";
+            finally
+            {
+                if (ReferenceEquals(_startupCts, startupCts))
+                    _startupCts = null;
+                startupCts.Dispose();
+            }
         });
     }
 
@@ -678,10 +746,12 @@ internal sealed class MainForm : Form
         _stopping = true;
         try
         {
-            var wasHost = _host.IsRunning;
+            _startupCts?.Cancel();
+            var wasHost = _host.IsRunning || _tunnelHost.IsRunning;
             SetBusy(true, wasHost ? "Stopping watch party..." : "Leaving watch party...");
             _watchPartyPanel.SetActive(false);
             await _clientSession.StopAsync();
+            await _tunnelHost.StopAsync();
             await _host.StopAsync();
             _activeConfiguration = null;
             _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
@@ -710,9 +780,11 @@ internal sealed class MainForm : Form
 
         eventArgs.Cancel = true;
         _closing = true;
+        _startupCts?.Cancel();
         Enabled = false;
         _status.Text = "Stopping watch party...";
         await _clientSession.DisposeAsync();
+        await _tunnelHost.DisposeAsync();
         await _host.DisposeAsync();
         FormClosing -= MainFormOnFormClosing;
         Close();
@@ -727,10 +799,31 @@ internal sealed class MainForm : Form
         {
             _watchPartyPanel.SetActive(false);
             await _clientSession.StopAsync();
+            await _tunnelHost.StopAsync();
             _activeConfiguration = null;
             _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
             SetRunningState(false);
             _status.Text = $"Server stopped unexpectedly (exit code {exitCode})";
+        });
+    }
+
+    private void TunnelHostOnTunnelExited(object? sender, string reason)
+    {
+        if (_closing || _stopping || IsDisposed || !IsHandleCreated)
+            return;
+
+        BeginInvoke(() =>
+        {
+            if (_closing || _stopping || !IsSessionRunning)
+                return;
+
+            if (_activeConfiguration is not null)
+                UpdateJoinDetails(_activeConfiguration);
+
+            _watchPartyPanel.AppendErrorMessage(
+                DateTime.Now.ToString("HH:mm:ss"),
+                $"{reason} Local Wi-Fi (LAN) friends can still connect.");
+            _status.Text = "Watch party is running (LAN only — Internet tunnel disconnected)";
         });
     }
 
@@ -741,8 +834,10 @@ internal sealed class MainForm : Form
 
         BeginInvoke(async () =>
         {
-            var wasHost = _host.IsRunning;
+            var wasHost = _host.IsRunning || _tunnelHost.IsRunning;
             _watchPartyPanel.SetActive(false);
+            await _clientSession.StopAsync();
+            await _tunnelHost.StopAsync();
             await _host.StopAsync();
             _activeConfiguration = null;
             _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
@@ -755,11 +850,34 @@ internal sealed class MainForm : Form
 
     private void UpdateJoinDetails(HostConfiguration configuration)
     {
-        var address = configuration.IsHost
-            ? $"{LocalAddressProvider.GetPreferredIpv4Address()}:{configuration.Port}"
-            : configuration.FormatTargetEndpoint();
         var passwordLine = string.IsNullOrEmpty(configuration.Password) ? "(none)" : configuration.Password;
-        _joinDetails.Text = $"Server: {address}{Environment.NewLine}Room: {configuration.RoomName}{Environment.NewLine}Password: {passwordLine}";
+        if (configuration.IsHost)
+        {
+            var lanEndpoint = $"{LocalAddressProvider.GetPreferredIpv4Address()}:{configuration.Port}";
+            var tunnelUrl = _tunnelHost.PublicWssUrl;
+            if (!string.IsNullOrWhiteSpace(tunnelUrl))
+            {
+                _joinDetails.Text =
+                    $"Server: {tunnelUrl}{Environment.NewLine}" +
+                    $"Room: {configuration.RoomName}{Environment.NewLine}" +
+                    $"Password: {passwordLine}{Environment.NewLine}" +
+                    $"LAN: {lanEndpoint}";
+            }
+            else
+            {
+                _joinDetails.Text =
+                    $"Server: {lanEndpoint}{Environment.NewLine}" +
+                    $"Room: {configuration.RoomName}{Environment.NewLine}" +
+                    $"Password: {passwordLine}";
+            }
+        }
+        else
+        {
+            _joinDetails.Text =
+                $"Server: {configuration.FormatTargetEndpoint()}{Environment.NewLine}" +
+                $"Room: {configuration.RoomName}{Environment.NewLine}" +
+                $"Password: {passwordLine}";
+        }
     }
 
     private void SetRunningState(bool running)
@@ -769,16 +887,23 @@ internal sealed class MainForm : Form
         _copyButton.Enabled = running;
         _hostModeRadio.Enabled = !running;
         _joinModeRadio.Enabled = !running;
+        _shareOverInternetCheckBox.Enabled = !running && IsHostMode;
         _serverHost.Enabled = !running && !IsHostMode;
         _pasteInviteButton.Enabled = !running && !IsHostMode;
         _roomName.Enabled = !running;
         _hostName.Enabled = !running;
         _password.Enabled = !running;
-        _port.Enabled = !running;
+        UpdatePortEnabledState(running);
         _playerPath.Enabled = !running;
         _browsePlayerButton.Enabled = !running;
         _mediaPath.Enabled = true;
         _browseButton.Enabled = true;
+    }
+
+    private void UpdatePortEnabledState(bool? runningOverride = null)
+    {
+        var running = runningOverride ?? IsSessionRunning;
+        _port.Enabled = !running && (IsHostMode || !WebSocketTunnelAddress.LooksLikeTunnelAddress(_serverHost.Text));
     }
 
     private void SetBusy(bool busy, string status)
@@ -788,6 +913,7 @@ internal sealed class MainForm : Form
         _copyButton.Enabled = !busy && IsSessionRunning;
         _hostModeRadio.Enabled = !busy && !IsSessionRunning;
         _joinModeRadio.Enabled = !busy && !IsSessionRunning;
+        _shareOverInternetCheckBox.Enabled = !busy && !IsSessionRunning && IsHostMode;
         _status.Text = status;
     }
 
@@ -797,8 +923,14 @@ internal sealed class MainForm : Form
         {
             await action();
         }
+        catch (OperationCanceledException) when (_closing || _stopping)
+        {
+            // Startup canceled by closing the window or clicking Stop.
+        }
         catch (Exception exception)
         {
+            if (_closing || IsDisposed)
+                return;
             SetRunningState(IsSessionRunning);
             _watchPartyPanel.SetActive(_clientSession.IsRunning);
             _status.Text = IsSessionRunning ? "Watch party is running" : "Watch party is off";

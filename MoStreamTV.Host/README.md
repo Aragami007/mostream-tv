@@ -10,12 +10,12 @@ dotnet run --project .\MoStreamTV.Host\MoStreamTV.Host.csproj
 
 For the prepared local build, double-click `RUN_MOSTREAM_TV.bat` in the workspace root or run `dist\MoStreamTV.Host\MoStreamTV.Host.exe` directly.
 
-The project bundles the official Syncplay 1.7.6 portable package and prepares it in `%LOCALAPPDATA%\MoStreamTV\Runtime\Syncplay-1.7.6`.
+The project bundles the official Syncplay 1.7.6 portable package in `%LOCALAPPDATA%\MoStreamTV\Runtime\Syncplay-1.7.6` and automatically downloads the official `cloudflared.exe` helper once into `%LOCALAPPDATA%\MoStreamTV\Runtime` when hosting with **Share over Internet** enabled.
 
 ## Connecting friends
 
-- Same Wi-Fi/LAN: friends select **Join watch party**, enter the displayed `IP:port`, room name, and password (or click **Paste invite**).
-- Over the Internet: forward the displayed TCP port in the router to the host computer and allow the application through Windows Firewall. Friends use the host's public IP address and port.
+- Over the Internet (no Hamachi / no router setup): keep **Share over Internet** checked when hosting and send your friends the displayed `wss://...` invite link via **Copy join details**. Friends switch to **Join watch party**, click **Paste invite**, and connect using MoStream TV's built-in WebSocket client bridge—no Hamachi or extra download required on the friend's PC.
+- Same Wi-Fi/LAN: friends can enter the displayed `LAN: <ip>:<port>` address and port directly.
 - No media is uploaded by MoStream TV. Each viewer needs their own local copy or accessible stream.
 
 ## Licensing

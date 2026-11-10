@@ -1,33 +1,33 @@
 # Networking and security
 
+## Internet connections without Hamachi (default host option)
+
+When **Share over Internet (no Hamachi / no router setup)** is checked:
+
+1. **Host computer**: `WebSocketTunnelHost` opens a local loopback WebSocket-to-TCP bridge to `syncplayServer.exe` and starts an ephemeral Cloudflare Quick Tunnel (`cloudflared.exe tunnel --url http://127.0.0.1:<bridgePort> --no-autoupdate`), producing an encrypted `wss://<random>.trycloudflare.com` URL without requiring router port forwarding, a static IP, or Hamachi.
+2. **Joining friends**: No VPN client and no `cloudflared.exe` download are needed. When a friend enters or pastes the `wss://...` URL, `WebSocketTunnelClient` connects via `.NET`'s `ClientWebSocket` (using IPv4-first Cloudflare/Google DoH resolution so fresh tunnel subdomains resolve immediately even behind virtual adapters like Hamachi) and exposes a local loopback TCP bridge for `SyncplayConsole.exe`.
+3. **Host privacy & security**: Traffic between the joining friend and Cloudflare edge is TLS-encrypted (`wss://`), and Cloudflare communicates with the host over an authenticated outbound `cloudflared` tunnel. Each session gets a new random subdomain and generated server password, and the tunnel closes automatically when the watch party stops.
+
+> [!NOTE]
+> The first time a host computer uses **Share over Internet**, MoStream TV downloads the official `cloudflared.exe` binary from Cloudflare's GitHub Releases into `%LOCALAPPDATA%\MoStreamTV\Runtime\cloudflared.exe`. You can uncheck **Share over Internet** at any time to run purely on your local network without downloading or starting the tunnel.
+
 ## Same LAN
 
-MoStream TV displays one active private IPv4 address and the selected TCP port. Friends on the same routed network enter that address in Syncplay along with the room and password.
+MoStream TV displays a `LAN: <ip>:<port>` address alongside the tunnel URL (or under `Server:` when **Share over Internet** is unchecked), prioritizing physical Wi-Fi and Ethernet adapters over virtual VPN/tunnel adapters. Friends on the same routed network can connect directly using that IP and TCP port.
 
-If the connection fails, check:
+If a LAN connection fails, check:
 
 1. Both computers are on the same LAN and client isolation is disabled.
-2. The displayed address belongs to the correct Wi-Fi or Ethernet adapter.
-3. Windows Firewall permits inbound TCP traffic for the server.
+2. The displayed address belongs to the active Wi-Fi or Ethernet adapter.
+3. Windows Firewall permits inbound TCP traffic for the server (`syncplayServer.exe`).
 4. No other program is already listening on the selected port.
 
-## Internet connections
+## Direct Internet connections without the tunnel
 
-Without a third-party relay, the host must be directly reachable. Usually this requires:
+If you uncheck **Share over Internet** and still want friends to join over the Internet without Hamachi, manual router port forwarding is required:
 
 1. A router port-forward from the chosen external TCP port to the host's LAN address and port.
-2. A stable LAN address for the host, normally through a DHCP reservation.
+2. A stable LAN address for the host (for example a DHCP reservation).
 3. A Windows Firewall inbound rule for the chosen TCP port.
-4. Sharing the host's public IP address and port with trusted friends.
 
-Carrier-grade NAT, double NAT, and some institutional networks can prevent inbound hosting even with local configuration.
-
-## Security limitations in 0.1.0
-
-- TLS is not configured by the launcher.
-- Router and firewall changes are not automated.
-- The application does not discover or publish the host's public IP.
-- The application does not provide a relay, tunnel, VPN, or dynamic-DNS service.
-- The generated password protects entry but does not make a plaintext Internet connection private.
-
-Use this release on trusted networks for testing. TLS certificate management should be completed before recommending direct public-Internet hosting.
+Note that carrier-grade NAT (CGNAT) and double NAT prevent direct port forwarding; keeping **Share over Internet** enabled bypasses CGNAT cleanly. Direct plaintext TCP without TLS does not encrypt traffic across the public Internet.

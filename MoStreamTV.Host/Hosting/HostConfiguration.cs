@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using MoStreamTV.Host.Networking;
 
 namespace MoStreamTV.Host.Hosting;
 
@@ -17,7 +18,8 @@ internal sealed record HostConfiguration(
     string Password,
     int Port,
     string MediaPath,
-    string PlayerPath)
+    string PlayerPath,
+    bool ShareOverInternet = true)
 {
     private static readonly HashSet<string> SupportedPlayerExecutables = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -39,6 +41,19 @@ internal sealed record HostConfiguration(
     };
 
     public bool IsHost => Mode == WatchPartyMode.Host;
+    public bool IsTunnelJoin => !IsHost && WebSocketTunnelAddress.LooksLikeTunnelAddress(ServerHost);
+
+    public bool TryGetTunnelUri(out Uri? uri, out string? error)
+    {
+        if (IsHost)
+        {
+            uri = null;
+            error = null;
+            return false;
+        }
+
+        return WebSocketTunnelAddress.TryNormalize(ServerHost, out uri, out error);
+    }
 
     public string EffectiveHost
     {
@@ -46,6 +61,8 @@ internal sealed record HostConfiguration(
         {
             if (IsHost)
                 return "127.0.0.1";
+            if (TryGetTunnelUri(out var uri, out _) && uri is not null)
+                return uri.Host;
             var (host, _) = SplitHostAndPort(ServerHost, Port);
             return host;
         }
@@ -57,6 +74,8 @@ internal sealed record HostConfiguration(
         {
             if (IsHost)
                 return Port;
+            if (TryGetTunnelUri(out var uri, out _) && uri is not null)
+                return uri.Port;
             var (_, parsedPort) = SplitHostAndPort(ServerHost, Port);
             return parsedPort;
         }
@@ -64,6 +83,9 @@ internal sealed record HostConfiguration(
 
     public string FormatTargetEndpoint()
     {
+        if (!IsHost && TryGetTunnelUri(out var uri, out _) && uri is not null)
+            return WebSocketTunnelAddress.FormatDisplayUrl(uri);
+
         var host = EffectiveHost;
         var port = EffectivePort;
         if (IPAddress.TryParse(host, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6 && !host.StartsWith('['))
@@ -76,13 +98,21 @@ internal sealed record HostConfiguration(
         if (!IsHost)
         {
             if (string.IsNullOrWhiteSpace(ServerHost))
-                throw new ArgumentException("Enter your friend's server IP address or hostname.", nameof(ServerHost));
+                throw new ArgumentException("Enter your friend's invite link (wss://...) or server IP/hostname.", nameof(ServerHost));
 
-            var (host, port) = SplitHostAndPort(ServerHost, Port);
-            if (string.IsNullOrWhiteSpace(host))
-                throw new ArgumentException("Enter a valid server address.", nameof(ServerHost));
-            if (port is < 1024 or > 65535)
-                throw new ArgumentOutOfRangeException(nameof(Port), "Choose a port from 1024 to 65535.");
+            if (IsTunnelJoin)
+            {
+                if (!TryGetTunnelUri(out var tunnelUri, out var tunnelError) || tunnelUri is null)
+                    throw new ArgumentException(tunnelError ?? "Enter a valid invite link (for example wss://example.trycloudflare.com).", nameof(ServerHost));
+            }
+            else
+            {
+                var (host, port) = SplitHostAndPort(ServerHost, Port);
+                if (string.IsNullOrWhiteSpace(host))
+                    throw new ArgumentException("Enter a valid server address.", nameof(ServerHost));
+                if (port is < 1024 or > 65535)
+                    throw new ArgumentOutOfRangeException(nameof(Port), "Choose a port from 1024 to 65535.");
+            }
         }
         else
         {
@@ -120,6 +150,13 @@ internal sealed record HostConfiguration(
         var trimmed = rawHost.Trim();
         if (string.IsNullOrEmpty(trimmed))
             return (string.Empty, fallbackPort);
+
+        if (WebSocketTunnelAddress.LooksLikeTunnelAddress(trimmed))
+        {
+            if (WebSocketTunnelAddress.TryNormalize(trimmed, out var tunnelUri, out _) && tunnelUri is not null)
+                return (WebSocketTunnelAddress.FormatDisplayUrl(tunnelUri), fallbackPort);
+            return (trimmed, fallbackPort);
+        }
 
         if (trimmed.StartsWith('['))
         {

@@ -406,9 +406,48 @@ class MoStreamBridgeUI(_LegacyConsoleUI):
     def addClient(self, client):
         super(MoStreamBridgeUI, self).addClient(client)
         self._wrap_file_switch()
+        self._wrap_player_guards(client)
         if client._config.get("file"):
             self._register_local_path(client._config["file"])
         client.addPlayerReadyCallback(self._on_player_ready)
+
+    def _wrap_player_guards(self, client):
+        if getattr(client, "_mostream_player_guards", False):
+            return
+        client._mostream_player_guards = True
+
+        targets = [client]
+        ui = getattr(client, "ui", None)
+        if ui is not None and ui is not client:
+            targets.append(ui)
+
+        for target in targets:
+            if hasattr(target, "showOSDMessage"):
+                orig_osd = target.showOSDMessage
+
+                def guarded_osd(*args, __orig=orig_osd, **kwargs):
+                    if getattr(client, "_player", None) is None:
+                        return
+                    return __orig(*args, **kwargs)
+
+                target.showOSDMessage = guarded_osd
+
+        chat_owner = ui if ui is not None and hasattr(ui, "showChatMessage") else client
+        if hasattr(chat_owner, "showChatMessage"):
+            orig_chat = chat_owner.showChatMessage
+
+            def guarded_chat(username, message, *args, __orig=orig_chat, **kwargs):
+                if getattr(client, "_player", None) is None:
+                    self._emit({
+                        "type": "chat",
+                        "username": _sanitize_text("" if username is None else str(username)),
+                        "message": _sanitize_text("" if message is None else str(message)).lstrip(),
+                        "timestamp": time.strftime("%H:%M:%S", time.localtime()),
+                    })
+                    return
+                return __orig(username, message, *args, **kwargs)
+
+            chat_owner.showChatMessage = guarded_chat
 
     def _on_player_ready(self, player):
         self._player_ready = True

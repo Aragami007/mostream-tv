@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using MoStreamTV.Host.Networking;
 
 namespace MoStreamTV.Host.Hosting;
 
@@ -63,6 +64,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
     private readonly object _startupLock = new();
     private readonly List<string> _startupErrors = [];
     private Process? _process;
+    private WebSocketTunnelClient? _tunnelClient;
     private TaskCompletionSource<bool>? _connectTcs;
     private bool _stopping;
     private bool _connected;
@@ -85,13 +87,39 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
     public event EventHandler<string>? RoomUpdated;
     public event EventHandler? ClientExited;
 
-    public async Task StartAsync(HostConfiguration configuration, CancellationToken cancellationToken = default)
+    public async Task StartAsync(
+        HostConfiguration configuration,
+        Action<string>? statusCallback = null,
+        CancellationToken cancellationToken = default)
     {
         configuration.Validate();
         if (IsRunning)
             throw new InvalidOperationException("The watch-party client is already running.");
 
         await _runtime.PrepareBridgeAsync(cancellationToken);
+
+        string targetEndpoint;
+        if (configuration.TryGetTunnelUri(out var tunnelUri, out _) && tunnelUri is not null)
+        {
+            var tunnelClient = new WebSocketTunnelClient();
+            try
+            {
+                var localPort = await tunnelClient.StartAsync(tunnelUri, statusCallback, cancellationToken);
+                _tunnelClient = tunnelClient;
+                targetEndpoint = $"127.0.0.1:{localPort}";
+            }
+            catch
+            {
+                await tunnelClient.DisposeAsync();
+                throw;
+            }
+
+            statusCallback?.Invoke($"Joining {configuration.FormatTargetEndpoint()} and opening media player...");
+        }
+        else
+        {
+            targetEndpoint = configuration.FormatTargetEndpoint();
+        }
 
         lock (_startupLock)
             _startupErrors.Clear();
@@ -119,7 +147,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
 
         startInfo.ArgumentList.Add("--no-gui");
         startInfo.ArgumentList.Add("--host");
-        startInfo.ArgumentList.Add(configuration.FormatTargetEndpoint());
+        startInfo.ArgumentList.Add(targetEndpoint);
         startInfo.ArgumentList.Add("--name");
         startInfo.ArgumentList.Add(configuration.HostName);
         startInfo.ArgumentList.Add("--room");
@@ -144,6 +172,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
         {
             process.Dispose();
             _connectTcs = null;
+            await DisposeTunnelClientAsync();
             throw new InvalidOperationException("Windows could not start the MoStream TV watch-party engine.");
         }
 
@@ -222,8 +251,16 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
                 process.Dispose();
             }
 
+            await DisposeTunnelClientAsync();
             _stopping = false;
         }
+    }
+
+    private async Task DisposeTunnelClientAsync()
+    {
+        var tunnelClient = Interlocked.Exchange(ref _tunnelClient, null);
+        if (tunnelClient is not null)
+            await tunnelClient.DisposeAsync();
     }
 
     public Task OpenFileAsync(string path, bool resetPosition = false, bool addToPlaylist = false) =>
@@ -374,6 +411,8 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
     {
         if (_stopping)
             return;
+
+        _ = DisposeTunnelClientAsync();
 
         var tcs = _connectTcs;
         if (tcs is not null && !tcs.Task.IsCompleted)
