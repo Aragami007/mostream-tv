@@ -1,18 +1,19 @@
 # MoStream TV
 
-MoStream TV is a small Windows host application for private, self-hosted watch parties. It starts a Syncplay-compatible server on your computer, opens your local Syncplay client, shows the connection details to share with friends, and stops the server when the host window closes.
+MoStream TV is a Windows desktop application for private, self-hosted watch parties. Everything happens inside one MoStream TV window: configure your room and movie, launch the private server and your local media player, share connection details with friends, and manage playback, readiness, participants, chat, and the shared playlist together.
 
-It does **not** upload or stream the movie. Every participant plays their own local copy or accessible stream while Syncplay coordinates pause, seek, and playback position.
+It does **not** upload or stream the movie file over the server. Every participant plays their own local copy or accessible stream while MoStream TV coordinates pause, seek, and playback position.
 
 ## Download and test
 
 1. Download this repository using **Code → Download ZIP** and extract it.
 2. Run `dist\MoStreamTV.Host\MoStreamTV.Host.exe`, or double-click `RUN_MOSTREAM_TV.bat`.
-3. Choose a room name, display name, password, and TCP port.
+3. Choose a room name, display name, password, TCP port, media player (VLC, mpv, mpv.net, MPC-HC, or MPC-BE), and optionally a starting movie file.
 4. Select **Start watch party**.
-5. Send your friends the displayed server address, room, and password.
+5. Send your friends the displayed server address, room, and password, or click **Copy join details**.
+6. Add, switch, or queue movies and stream URLs directly inside MoStream TV at any time (via **Choose movie...**, **Open movie...**, **Add file(s)...**, or drag-and-drop).
 
-The first launch extracts the bundled Syncplay 1.7.6 runtime to:
+The first launch extracts and prepares the bundled watch-party runtime in:
 
 ```text
 %LOCALAPPDATA%\MoStreamTV\Runtime\Syncplay-1.7.6
@@ -32,11 +33,11 @@ They can connect directly to the LAN address displayed by MoStream TV. Windows m
 
 You must forward the selected **TCP** port in your router to the host computer and allow that port through the host firewall. Friends then use your public IP address and port.
 
-The current MVP does not automate router configuration, firewall rules, dynamic DNS, or TLS. It is suitable for trusted LAN testing but is not yet an Internet-hardened deployment. See [Networking and security](docs/NETWORKING.md) before exposing it publicly.
+The current release does not automate router configuration, firewall rules, dynamic DNS, or TLS. It is suitable for trusted LAN testing but is not yet an Internet-hardened deployment. See [Networking and security](docs/NETWORKING.md) before exposing it publicly.
 
 ## What happens when the app closes?
 
-The private server is a child process owned by MoStream TV. Closing the host window terminates that server process tree. The media player and local Syncplay client are intentionally left open.
+The private server, headless watch-party engine, and launched media player session are managed by MoStream TV and shut down cleanly when you click **Stop watch party** or close the MoStream TV window.
 
 ## Build from source
 
@@ -68,7 +69,7 @@ Create a friend-ready ZIP containing the runtime and licenses:
 
 ## Upstream and licensing
 
-MoStream TV is an independent host/launcher built around the unmodified Syncplay runtime. Syncplay is licensed under Apache License 2.0. Its license and third-party notices are preserved in `MoStreamTV.Host/licenses/`.
+MoStream TV bundles the Syncplay 1.7.6 runtime for underlying synchronization and media-player control. Syncplay is licensed under Apache License 2.0. Its license and third-party notices are preserved in `MoStreamTV.Host/licenses/`.
 
 MoStream TV source code is also distributed under Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 

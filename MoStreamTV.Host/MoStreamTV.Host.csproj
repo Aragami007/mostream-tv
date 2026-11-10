@@ -7,10 +7,11 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MoStreamTV.Host</AssemblyName>
     <RootNamespace>MoStreamTV.Host</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Hosting\Bridge\consoleUI.py" LogicalName="MoStreamTV.Host.Bridge.consoleUI.py" />
     <Content Include="..\vendor\Syncplay_1.7.6_Portable.zip" Link="runtime\Syncplay_1.7.6_Portable.zip">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

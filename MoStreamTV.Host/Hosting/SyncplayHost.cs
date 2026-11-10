@@ -105,29 +105,6 @@ internal sealed class SyncplayHost : IAsyncDisposable
         }
     }
 
-    public async Task LaunchClientAsync(HostConfiguration configuration, CancellationToken cancellationToken = default)
-    {
-        configuration.Validate();
-        await _runtime.EnsureAvailableAsync(cancellationToken);
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = _runtime.ClientExecutable,
-            WorkingDirectory = _runtime.WorkingDirectory,
-            UseShellExecute = true,
-        };
-        startInfo.ArgumentList.Add("--host");
-        startInfo.ArgumentList.Add($"127.0.0.1:{configuration.Port}");
-        startInfo.ArgumentList.Add("--name");
-        startInfo.ArgumentList.Add(configuration.HostName);
-        startInfo.ArgumentList.Add("--room");
-        startInfo.ArgumentList.Add(configuration.RoomName);
-        startInfo.ArgumentList.Add("--password");
-        startInfo.ArgumentList.Add(configuration.Password);
-
-        Process.Start(startInfo);
-    }
-
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
