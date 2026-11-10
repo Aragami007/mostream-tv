@@ -2,6 +2,13 @@
 
 All notable changes to Mostream TV are documented here.
 
+## 0.6.0 - 2026-11-11
+
+### Added
+
+- Standalone single-file Windows installer (`MostreamTV-Setup-0.6.0-windows-x64.exe`, `MostreamTV.Installer`) and self-contained portable release archive (`MostreamTV.Host-0.6.0-windows-x64.zip`).
+- Both release artifacts now bundle the `.NET 8` Windows Desktop runtime alongside the Syncplay 1.7.6 runtime (and pre-stage Syncplay during installation), creates Start Menu and Desktop shortcuts with clean Apps & Features uninstallation, and launches Mostream TV ready for immediate use with zero separate runtime downloads.
+
 ## 0.5.2 - 2026-11-11
 
 ### Changed

@@ -6,25 +6,24 @@ It does **not** upload or stream the movie file over the server. Every participa
 
 ## Host or join a watch party
 
-1. Download this repository using **Code → Download ZIP** and extract it.
-2. Run `dist\MostreamTV.Host\MostreamTV.Host.exe`, or double-click `RUN_MOSTREAM_TV.bat`.
-3. **To host a watch party:**
+1. **Quickest install (recommended for new users):** Download **`MostreamTV-Setup-...-windows-x64.exe`** from the latest GitHub Release, run it, click **Install**, and Mostream TV launches ready to use immediately—both the `.NET 8` desktop runtime and the Syncplay watch-party runtime are bundled inside.
+   - Or download **`MostreamTV.Host-...-windows-x64.zip`**, extract it anywhere, and run `MostreamTV.Host.exe` without installing.
+   - If you cloned or downloaded the source repository instead, install the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) and run `dist\MostreamTV.Host\MostreamTV.Host.exe` (or double-click `RUN_MOSTREAM_TV.bat`).
+2. **To host a watch party:**
    - Keep **Mode** on **Host watch party** and keep **Share over Internet** checked (or uncheck it for same-Wi-Fi/LAN-only hosting).
    - Choose a room name, display name, password, TCP port, media player (VLC, mpv, mpv.net, MPC-HC, or MPC-BE), and optionally a movie file.
    - Click **Start watch party** and share the generated `wss://...` invite details (and optional `LAN:` IP) with friends using **Copy join details**.
-4. **To join a friend's watch party:**
+3. **To join a friend's watch party:**
    - Select **Join watch party** under **Mode**.
    - Click **Paste invite** after copying your friend's invite details (or enter the `wss://...` link or `IP:port`, **Room name**, **Your name**, and **Password**).
    - Click **Join watch party**.
-5. Chat, view room activity, toggle readiness, and manage the shared playlist directly inside Mostream TV at any time (via **Choose movie...**, **Add file(s)...**, **Add URL...**, or drag-and-drop), or switch between Light and Dark themes from the top-right header icon.
+4. Chat, view room activity, toggle readiness, and manage the shared playlist directly inside Mostream TV at any time (via **Choose movie...**, **Add file(s)...**, **Add URL...**, or drag-and-drop), or switch between Light and Dark themes from the top-right header icon.
 
-The first launch extracts and prepares the bundled watch-party runtime (and, on host computers using the built-in Internet tunnel for the first time, downloads the official `cloudflared.exe` helper once) in:
+Windows 10 and Windows 11 (64-bit) are supported. On host computers using the built-in Internet tunnel for the first time, Mostream TV also downloads the official `cloudflared.exe` helper once into:
 
 ```text
 %LOCALAPPDATA%\MoStreamTV\Runtime
 ```
-
-Mostream TV requires the .NET 8 Desktop Runtime on Windows. Windows 10 and Windows 11 are the initial supported platforms.
 
 This is an unsigned development build, so Windows may identify it as an unrecognized application. If your friend is not comfortable running an unsigned binary, they should build it from the reviewed source instead.
 

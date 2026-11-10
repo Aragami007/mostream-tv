@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MostreamTV.Installer</AssemblyName>
+    <RootNamespace>MostreamTV.Installer</RootNamespace>
+    <Product>Mostream TV Setup</Product>
+    <Version>0.6.0</Version>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <ApplicationIcon>..\MostreamTV.Host\Assets\mostream.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\MostreamTV.Host\Assets\mostream.ico" LogicalName="MostreamTV.Installer.mostream.ico" />
+    <EmbeddedResource Include="..\MostreamTV.Host\Assets\mostream-32.png" LogicalName="MostreamTV.Installer.mostream-32.png" />
+    <EmbeddedResource Include="$(PayloadZipPath)" Condition="'$(PayloadZipPath)' != '' and Exists('$(PayloadZipPath)')" LogicalName="MostreamTV.Installer.payload.zip" />
+  </ItemGroup>
+</Project>
