@@ -76,4 +76,6 @@ MoStream TV bundles the Syncplay 1.7.6 runtime for underlying synchronization an
 
 MoStream TV source code is also distributed under Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
+Made by Mohit and Kausthuba
+
 Syncplay project: <https://github.com/Syncplay/syncplay>
