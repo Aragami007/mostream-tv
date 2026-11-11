@@ -217,7 +217,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
             {
                 try
                 {
-                    await SendCommandCoreAsync(process, new { cmd = "stop" });
+                    await SendCommandCoreAsync(process, BuildCommandJson("stop"));
                     process.StandardInput.Close();
                 }
                 catch
@@ -264,52 +264,80 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
     }
 
     public Task OpenFileAsync(string path, bool resetPosition = false, bool addToPlaylist = false) =>
-        SendCommandAsync(new { cmd = "open_file", path, resetPosition, addToPlaylist });
+        SendCommandAsync("open_file", writer =>
+        {
+            writer.WriteString("path", path);
+            writer.WriteBoolean("resetPosition", resetPosition);
+            writer.WriteBoolean("addToPlaylist", addToPlaylist);
+        });
 
-    public Task AddPlaylistItemsAsync(IEnumerable<string> paths, bool openIfIdle = true) =>
-        SendCommandAsync(new { cmd = "add_playlist_items", paths = paths.ToArray(), openIfIdle });
+    public Task AddPlaylistItemsAsync(IEnumerable<string> paths, bool openIfIdle = true)
+    {
+        var items = paths.ToArray();
+        return SendCommandAsync("add_playlist_items", writer =>
+        {
+            writer.WriteStartArray("paths");
+            foreach (var item in items)
+                writer.WriteStringValue(item);
+            writer.WriteEndArray();
+            writer.WriteBoolean("openIfIdle", openIfIdle);
+        });
+    }
 
     public Task SelectPlaylistIndexAsync(int index) =>
-        SendCommandAsync(new { cmd = "select_playlist_index", index });
+        SendCommandAsync("select_playlist_index", writer => writer.WriteNumber("index", index));
 
-    public Task RemovePlaylistIndicesAsync(IEnumerable<int> indices) =>
-        SendCommandAsync(new { cmd = "remove_playlist_indices", indices = indices.ToArray() });
+    public Task RemovePlaylistIndicesAsync(IEnumerable<int> indices)
+    {
+        var values = indices.ToArray();
+        return SendCommandAsync("remove_playlist_indices", writer =>
+        {
+            writer.WriteStartArray("indices");
+            foreach (var value in values)
+                writer.WriteNumberValue(value);
+            writer.WriteEndArray();
+        });
+    }
 
     public Task ClearPlaylistAsync() =>
-        SendCommandAsync(new { cmd = "clear_playlist" });
+        SendCommandAsync("clear_playlist");
 
     public Task ShufflePlaylistAsync() =>
-        SendCommandAsync(new { cmd = "shuffle_playlist" });
+        SendCommandAsync("shuffle_playlist");
 
     public Task SetPausedAsync(bool paused) =>
-        SendCommandAsync(new { cmd = "set_paused", paused });
+        SendCommandAsync("set_paused", writer => writer.WriteBoolean("paused", paused));
 
     public Task TogglePauseAsync() =>
-        SendCommandAsync(new { cmd = "toggle_pause" });
+        SendCommandAsync("toggle_pause");
 
     public Task SeekAsync(string target) =>
-        SendCommandAsync(new { cmd = "seek", target });
+        SendCommandAsync("seek", writer => writer.WriteString("target", target));
 
     public Task UndoSeekAsync() =>
-        SendCommandAsync(new { cmd = "undo_seek" });
+        SendCommandAsync("undo_seek");
 
     public Task SetReadyAsync(bool ready) =>
-        SendCommandAsync(new { cmd = "set_ready", ready });
+        SendCommandAsync("set_ready", writer => writer.WriteBoolean("ready", ready));
 
     public Task SetAutoPlayAsync(bool enabled, int minUsers) =>
-        SendCommandAsync(new { cmd = "set_autoplay", enabled, minUsers });
+        SendCommandAsync("set_autoplay", writer =>
+        {
+            writer.WriteBoolean("enabled", enabled);
+            writer.WriteNumber("minUsers", minUsers);
+        });
 
     public Task SetRoomAsync(string room) =>
-        SendCommandAsync(new { cmd = "set_room", room });
+        SendCommandAsync("set_room", writer => writer.WriteString("room", room));
 
     public Task SendChatAsync(string message) =>
-        SendCommandAsync(new { cmd = "send_chat", message });
+        SendCommandAsync("send_chat", writer => writer.WriteString("message", message));
 
     public Task SwitchToFileAsync(string filename) =>
-        SendCommandAsync(new { cmd = "switch_to_file", filename });
+        SendCommandAsync("switch_to_file", writer => writer.WriteString("filename", filename));
 
     public Task ReconnectAsync() =>
-        SendCommandAsync(new { cmd = "reconnect" });
+        SendCommandAsync("reconnect");
 
     public async ValueTask DisposeAsync()
     {
@@ -317,18 +345,30 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
         _writeLock.Dispose();
     }
 
-    private async Task SendCommandAsync(object payload)
+    private static string BuildCommandJson(string command, Action<Utf8JsonWriter>? writeFields = null)
+    {
+        using var buffer = new MemoryStream(128);
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("cmd", command);
+            writeFields?.Invoke(writer);
+            writer.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
+    }
+
+    private async Task SendCommandAsync(string command, Action<Utf8JsonWriter>? writeFields = null)
     {
         var process = _process;
         if (process is null || process.HasExited)
             return;
 
-        await SendCommandCoreAsync(process, payload);
+        await SendCommandCoreAsync(process, BuildCommandJson(command, writeFields));
     }
 
-    private async Task SendCommandCoreAsync(Process process, object payload)
+    private async Task SendCommandCoreAsync(Process process, string json)
     {
-        var json = JsonSerializer.Serialize(payload);
         await _writeLock.WaitAsync();
         try
         {

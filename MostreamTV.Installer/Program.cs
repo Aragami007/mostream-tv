@@ -15,11 +15,15 @@ internal static class Program
     private const string UninstallerFileName = "Uninstall Mostream TV.exe";
     private const string UninstallRegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\MostreamTV";
     private const string PayloadResourceName = "MostreamTV.Installer.payload.zip";
+    private const string EofCabinetMagic = "MSTRCAB1";
+    private const string EofZipMagic = "MSTRZIP1";
+    private const int EofFooterSize = 16;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        ApplicationConfiguration.Initialize();
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
         var silent = args.Any(a => string.Equals(a, "--silent", StringComparison.OrdinalIgnoreCase)
             || string.Equals(a, "/S", StringComparison.OrdinalIgnoreCase));
@@ -51,14 +55,20 @@ internal static class Program
         {
             var info = Assembly.GetExecutingAssembly()
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            if (!string.IsNullOrWhiteSpace(info))
+            if (info is not null && !string.IsNullOrWhiteSpace(info))
                 return info.Split('+')[0];
-            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.6.0";
+            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.6.1";
         }
     }
 
-    internal static bool HasPayload() =>
-        Assembly.GetExecutingAssembly().GetManifestResourceInfo(PayloadResourceName) is not null;
+    internal static bool HasPayload()
+    {
+        if (Assembly.GetExecutingAssembly().GetManifestResourceInfo(PayloadResourceName) is not null)
+            return true;
+
+        var selfPath = GetSelfExecutablePath();
+        return !string.IsNullOrEmpty(selfPath) && TryGetEofPayload(selfPath!, out _, out _, out _);
+    }
 
     internal static async Task InstallAsync(
         string targetDirectory,
@@ -81,37 +91,7 @@ internal static class Program
             EnsureHostProcessClosed(targetDirectory);
 
             progress.Report((15, "Extracting Mostream TV files..."));
-            using (var payloadStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(PayloadResourceName)
-                ?? throw new InvalidOperationException("Could not read embedded installer payload."))
-            using (var archive = new ZipArchive(payloadStream, ZipArchiveMode.Read))
-            {
-                var total = Math.Max(1, archive.Entries.Count);
-                var completed = 0;
-                foreach (var entry in archive.Entries)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var destination = Path.GetFullPath(Path.Combine(targetDirectory, entry.FullName));
-                    if (!destination.StartsWith(targetDirectory, StringComparison.OrdinalIgnoreCase))
-                        throw new IOException($"Blocked unsafe archive entry: {entry.FullName}");
-
-                    if (string.IsNullOrEmpty(entry.Name))
-                    {
-                        Directory.CreateDirectory(destination);
-                    }
-                    else
-                    {
-                        var parent = Path.GetDirectoryName(destination);
-                        if (!string.IsNullOrEmpty(parent))
-                            Directory.CreateDirectory(parent);
-                        entry.ExtractToFile(destination, overwrite: true);
-                    }
-
-                    completed++;
-                    var pct = 15 + (int)(completed * 65.0 / total);
-                    if (completed == total || completed % 15 == 0)
-                        progress.Report((pct, "Extracting Mostream TV files..."));
-                }
-            }
+            ExtractPayloadToDirectory(targetDirectory, progress, cancellationToken);
 
             var mainExe = Path.Combine(targetDirectory, AppExecutableName);
             if (!File.Exists(mainExe))
@@ -122,11 +102,11 @@ internal static class Program
 
             progress.Report((90, "Installing shortcuts and uninstaller..."));
             var uninstallerPath = Path.Combine(targetDirectory, UninstallerFileName);
-            var selfPath = Environment.ProcessPath;
+            var selfPath = GetSelfExecutablePath();
             if (!string.IsNullOrEmpty(selfPath) && File.Exists(selfPath)
                 && !string.Equals(Path.GetFullPath(selfPath), Path.GetFullPath(uninstallerPath), StringComparison.OrdinalIgnoreCase))
             {
-                File.Copy(selfPath, uninstallerPath, overwrite: true);
+                WriteUninstallerStub(selfPath!, uninstallerPath);
             }
 
             CreateShortcut(StartMenuShortcutPath(), mainExe, targetDirectory, "Host or join private watch parties");
@@ -136,6 +116,218 @@ internal static class Program
             RegisterUninstaller(targetDirectory, mainExe, uninstallerPath);
             progress.Report((100, "Mostream TV is ready!"));
         }, cancellationToken);
+    }
+
+    private static void ExtractPayloadToDirectory(
+        string targetDirectory,
+        IProgress<(int Percent, string Status)> progress,
+        CancellationToken cancellationToken)
+    {
+        var selfPath = GetSelfExecutablePath();
+        if (!string.IsNullOrEmpty(selfPath) && TryGetEofPayload(selfPath!, out var offset, out var length, out var magic))
+        {
+            if (string.Equals(magic, EofCabinetMagic, StringComparison.Ordinal))
+            {
+                var tempZipPath = Path.Combine(Path.GetTempPath(), $"mostream-payload-{Guid.NewGuid():N}.zip");
+                try
+                {
+                    ExtractCabinetPayload(selfPath!, offset, length, tempZipPath);
+                    using var archive = ZipFile.OpenRead(tempZipPath);
+                    ExtractZipWithProgress(archive, targetDirectory, progress, cancellationToken);
+                }
+                finally
+                {
+                    TryDeleteFile(tempZipPath);
+                }
+                return;
+            }
+
+            using var exeStream = File.OpenRead(selfPath!);
+            using var boundedStream = new SubStream(exeStream, offset, length);
+            using var zipArchive = new ZipArchive(boundedStream, ZipArchiveMode.Read);
+            ExtractZipWithProgress(zipArchive, targetDirectory, progress, cancellationToken);
+            return;
+        }
+
+        using var payloadStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(PayloadResourceName)
+            ?? throw new InvalidOperationException("Could not read embedded installer payload.");
+        using var resourceArchive = new ZipArchive(payloadStream, ZipArchiveMode.Read);
+        ExtractZipWithProgress(resourceArchive, targetDirectory, progress, cancellationToken);
+    }
+
+    private static void ExtractZipWithProgress(
+        ZipArchive archive,
+        string targetDirectory,
+        IProgress<(int Percent, string Status)>? progress,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRoot = targetDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var total = Math.Max(1, archive.Entries.Count);
+        var completed = 0;
+
+        foreach (var entry in archive.Entries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var destination = Path.GetFullPath(Path.Combine(targetDirectory, entry.FullName));
+            if (!destination.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(destination, targetDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IOException($"Blocked unsafe archive entry: {entry.FullName}");
+            }
+
+            if (string.IsNullOrEmpty(entry.Name))
+            {
+                Directory.CreateDirectory(destination);
+            }
+            else
+            {
+                var parent = Path.GetDirectoryName(destination);
+                if (!string.IsNullOrEmpty(parent))
+                    Directory.CreateDirectory(parent);
+                entry.ExtractToFile(destination, overwrite: true);
+            }
+
+            completed++;
+            if (progress is not null && (completed == total || completed % 15 == 0))
+            {
+                var pct = 15 + (int)(completed * 65.0 / total);
+                progress.Report((pct, "Extracting Mostream TV files..."));
+            }
+        }
+    }
+
+    private static string? GetSelfExecutablePath()
+    {
+        var location = typeof(Program).Assembly.Location;
+        if (!string.IsNullOrWhiteSpace(location) && File.Exists(location))
+            return location;
+
+        try
+        {
+            using var current = Process.GetCurrentProcess();
+            return current.MainModule?.FileName;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool TryGetEofPayload(string exePath, out long payloadOffset, out long payloadLength, out string magic)
+    {
+        payloadOffset = 0;
+        payloadLength = 0;
+        magic = string.Empty;
+
+        try
+        {
+            if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+                return false;
+
+            using var fs = File.OpenRead(exePath);
+            if (fs.Length < EofFooterSize)
+                return false;
+
+            fs.Seek(-EofFooterSize, SeekOrigin.End);
+            var footer = new byte[EofFooterSize];
+            if (fs.Read(footer, 0, EofFooterSize) != EofFooterSize)
+                return false;
+
+            var candidateMagic = Encoding.ASCII.GetString(footer, 8, 8);
+            if (!string.Equals(candidateMagic, EofCabinetMagic, StringComparison.Ordinal)
+                && !string.Equals(candidateMagic, EofZipMagic, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var candidateLength = BitConverter.ToInt64(footer, 0);
+            if (candidateLength <= 0 || candidateLength > fs.Length - EofFooterSize)
+                return false;
+
+            payloadLength = candidateLength;
+            payloadOffset = fs.Length - EofFooterSize - candidateLength;
+            magic = candidateMagic;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void WriteUninstallerStub(string selfPath, string uninstallerPath)
+    {
+        if (TryGetEofPayload(selfPath, out var payloadOffset, out _, out _))
+        {
+            using var source = File.OpenRead(selfPath);
+            using var target = File.Create(uninstallerPath);
+            CopyExactBytes(source, target, payloadOffset);
+            return;
+        }
+
+        File.Copy(selfPath, uninstallerPath, overwrite: true);
+    }
+
+    private static void ExtractCabinetPayload(string selfPath, long payloadOffset, long payloadLength, string destinationZipPath)
+    {
+        var tempCabPath = Path.Combine(Path.GetTempPath(), $"mostream-cab-{Guid.NewGuid():N}.cab");
+        try
+        {
+            using (var source = File.OpenRead(selfPath))
+            using (var cabOut = File.Create(tempCabPath))
+            {
+                source.Seek(payloadOffset, SeekOrigin.Begin);
+                CopyExactBytes(source, cabOut, payloadLength);
+            }
+
+            var extracted = false;
+            PspFileCallbackW callback = (_, notification, param1, _) =>
+            {
+                if (notification == SpFileNotifyFileInCabinet)
+                {
+                    var info = Marshal.PtrToStructure<FileInCabinetInfoW>(param1);
+                    var entryName = Marshal.PtrToStringUni(info.NameInCabinet) ?? string.Empty;
+                    if (string.Equals(entryName, "payload", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(entryName, "payload.zip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        info.FullTargetName = destinationZipPath;
+                        Marshal.StructureToPtr(info, param1, false);
+                        return FileOpDoIt;
+                    }
+                    return FileOpSkip;
+                }
+
+                if (notification == SpFileNotifyFileExtracted)
+                    extracted = true;
+
+                return 0;
+            };
+
+            var ok = SetupIterateCabinetW(tempCabPath, 0, callback, IntPtr.Zero);
+            GC.KeepAlive(callback);
+            if (!ok || !extracted || !File.Exists(destinationZipPath))
+                throw new IOException($"Could not decompress installer payload (Win32 error {Marshal.GetLastWin32Error()}).");
+        }
+        finally
+        {
+            TryDeleteFile(tempCabPath);
+        }
+    }
+
+    private static void CopyExactBytes(Stream source, Stream destination, long byteCount)
+    {
+        var buffer = new byte[81920];
+        var remaining = byteCount;
+        while (remaining > 0)
+        {
+            var toRead = (int)Math.Min(buffer.Length, remaining);
+            var read = source.Read(buffer, 0, toRead);
+            if (read <= 0)
+                throw new EndOfStreamException("Unexpected end of installer payload.");
+            destination.Write(buffer, 0, read);
+            remaining -= read;
+        }
     }
 
     internal static void LaunchInstalledApp(string targetDirectory)
@@ -183,7 +375,7 @@ internal static class Program
 
         if (string.IsNullOrWhiteSpace(installDir))
         {
-            var selfDir = Path.GetDirectoryName(Environment.ProcessPath);
+            var selfDir = Path.GetDirectoryName(GetSelfExecutablePath());
             if (!string.IsNullOrWhiteSpace(selfDir) && File.Exists(Path.Combine(selfDir, AppExecutableName)))
                 installDir = selfDir;
         }
@@ -201,16 +393,16 @@ internal static class Program
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(installDir))
+            if (installDir is not null && !string.IsNullOrWhiteSpace(installDir))
                 EnsureHostProcessClosed(installDir);
 
             TryDeleteFile(StartMenuShortcutPath());
             TryDeleteFile(DesktopShortcutPath());
             Registry.CurrentUser.DeleteSubKeyTree(UninstallRegistryKey, throwOnMissingSubKey: false);
 
-            if (!string.IsNullOrWhiteSpace(installDir) && Directory.Exists(installDir))
+            if (installDir is not null && !string.IsNullOrWhiteSpace(installDir) && Directory.Exists(installDir))
             {
-                var selfPath = Environment.ProcessPath ?? string.Empty;
+                var selfPath = GetSelfExecutablePath() ?? string.Empty;
                 var insideInstallDir = !string.IsNullOrEmpty(selfPath)
                     && Path.GetFullPath(selfPath).StartsWith(Path.GetFullPath(installDir), StringComparison.OrdinalIgnoreCase);
 
@@ -262,7 +454,8 @@ internal static class Program
                 return;
 
             Directory.CreateDirectory(runtimeDir);
-            ZipFile.ExtractToDirectory(archivePath, runtimeDir, overwriteFiles: true);
+            using var archive = ZipFile.OpenRead(archivePath);
+            ExtractZipWithProgress(archive, runtimeDir, null, CancellationToken.None);
         }
         catch
         {
@@ -376,6 +569,88 @@ internal static class Program
                 return args[i + 1];
         }
         return null;
+    }
+
+    private const uint SpFileNotifyFileInCabinet = 0x00000011;
+    private const uint SpFileNotifyFileExtracted = 0x00000013;
+    private const uint FileOpDoIt = 1;
+    private const uint FileOpSkip = 2;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct FileInCabinetInfoW
+    {
+        public IntPtr NameInCabinet;
+        public uint FileSize;
+        public uint Win32Error;
+        public ushort DosDate;
+        public ushort DosTime;
+        public ushort DosAttribs;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string FullTargetName;
+    }
+
+    private delegate uint PspFileCallbackW(IntPtr context, uint notification, IntPtr param1, IntPtr param2);
+
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetupIterateCabinetW(string cabinetFile, uint reserved, PspFileCallbackW msgHandler, IntPtr context);
+
+    private sealed class SubStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly long _offset;
+        private readonly long _length;
+        private long _position;
+
+        public SubStream(Stream inner, long offset, long length)
+        {
+            _inner = inner;
+            _offset = offset;
+            _length = length;
+            _inner.Seek(offset, SeekOrigin.Begin);
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => true;
+        public override bool CanWrite => false;
+        public override long Length => _length;
+        public override long Position
+        {
+            get => _position;
+            set => Seek(value, SeekOrigin.Begin);
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var remaining = _length - _position;
+            if (remaining <= 0)
+                return 0;
+
+            _inner.Seek(_offset + _position, SeekOrigin.Begin);
+            var read = _inner.Read(buffer, offset, (int)Math.Min(count, remaining));
+            _position += read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            var next = origin switch
+            {
+                SeekOrigin.Begin => offset,
+                SeekOrigin.Current => _position + offset,
+                SeekOrigin.End => _length + offset,
+                _ => throw new ArgumentOutOfRangeException(nameof(origin)),
+            };
+            if (next < 0 || next > _length)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            _position = next;
+            return _position;
+        }
+
+        public override void Flush() { }
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     [ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown), Guid("000214F9-0000-0000-C000-000000000046")]
@@ -559,7 +834,6 @@ internal sealed class SetupForm : Form
         {
             Description = "Choose where to install Mostream TV",
             SelectedPath = _installDirBox.Text,
-            UseDescriptionForTitle = true,
         };
         if (dialog.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.SelectedPath))
             _installDirBox.Text = dialog.SelectedPath;
@@ -577,7 +851,7 @@ internal sealed class SetupForm : Form
         var targetDir = _installDirBox.Text.Trim();
         var progress = new Progress<(int Percent, string Status)>(update =>
         {
-            _progressBar.Value = Math.Clamp(update.Percent, 0, 100);
+            _progressBar.Value = Math.Max(0, Math.Min(100, update.Percent));
             _statusLabel.Text = update.Status;
         });
 

@@ -2,6 +2,16 @@
 
 All notable changes to Mostream TV are documented here.
 
+## 0.6.1 - 2026-11-11
+
+### Changed
+
+- Dramatically reduced self-contained release footprint (`MostreamTV-Setup-0.6.1-windows-x64.exe` ~20 MB, `MostreamTV.Host-0.6.1-windows-x64.zip` ~24.4 MB):
+  - Switched `MostreamTV.Installer` to target Windows's built-in `.NET Framework 4.8` runtime (`net48`) with an LZX-compressed cabinet payload (`makecab.exe` / `SetupIterateCabinetW`), eliminating the duplicate 68 MB `.NET 8` runtime from the installer and keeping `Uninstall Mostream TV.exe` at ~60 KB.
+  - Enabled English-only satellite filtering, partial IL trimming, single-file bundling, and MSBuild runtime pruning in `MostreamTV.Host` to exclude unused WPF, WinForms Designer, Visual Basic, and diagnostic binaries while keeping the full WinForms/Host assembly closure intact.
+  - Replaced anonymous-type reflection serialization in `SyncplayClientSession` with trim-safe `Utf8JsonWriter` serialization.
+  - Stripped unused PySide2/Qt5 GUI binaries and Python packaging metadata from the release Syncplay runtime (`Syncplay_1.7.6_Portable.zip`), preserving headless `syncplayServer.exe` and `SyncplayConsole.exe --no-gui` execution.
+
 ## 0.6.0 - 2026-11-11
 
 ### Added

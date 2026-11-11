@@ -8,8 +8,20 @@
     <AssemblyName>MostreamTV.Host</AssemblyName>
     <RootNamespace>MostreamTV.Host</RootNamespace>
     <Product>Mostream TV</Product>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <ApplicationIcon>Assets\mostream.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(SelfContained)' == 'true'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <_SuppressWinFormsTrimError>true</_SuppressWinFormsTrimError>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,13 +29,49 @@
     <EmbeddedResource Include="Assets\mostream-32.png" LogicalName="MostreamTV.Host.Assets.mostream-32.png" />
     <EmbeddedResource Include="Assets\mostream-16.png" LogicalName="MostreamTV.Host.Assets.mostream-16.png" />
     <EmbeddedResource Include="Hosting\Bridge\consoleUI.py" LogicalName="MostreamTV.Host.Bridge.consoleUI.py" />
-    <Content Include="..\vendor\Syncplay_1.7.6_Portable.zip" Link="runtime\Syncplay_1.7.6_Portable.zip">
+    <Content Include="..\vendor\Syncplay_1.7.6_Portable.zip" Link="runtime\Syncplay_1.7.6_Portable.zip" Condition="'$(ExcludeSyncplayVendorZip)' != 'true'">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
     <Content Include="licenses\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
   </ItemGroup>
+
+  <!-- WinForms self-contained publishes pull the full WindowsDesktop runtime pack (including WPF, WinForms Designer, VB, and debugger binaries). Prune unused components while keeping the full WinForms/Host closure. -->
+  <PropertyGroup>
+    <_PrunedRuntimeExactNames>;WindowsBase.dll;ReachFramework.dll;System.Windows.Controls.Ribbon.dll;System.Xaml.dll;System.Printing.dll;DirectWriteForwarder.dll;D3DCompiler_47_cor3.dll;wpfgfx_cor3.dll;PenImc_cor3.dll;WindowsFormsIntegration.dll;System.Windows.Input.Manipulations.dll;System.Windows.Presentation.dll;System.Design.dll;System.Drawing.Design.dll;System.Drawing.dll;mscordbi.dll;createdump.exe;System.Data.Common.dll;System.Private.DataContractSerialization.dll;System.CodeDom.dll;System.Security.Cryptography.Xml.dll;System.Reflection.Metadata.dll;System.IO.Packaging.dll;netstandard.dll;System.Security.AccessControl.dll;System.IO.Pipes.dll;System.DirectoryServices.dll;System.Console.dll;System.IO.MemoryMappedFiles.dll;System.Collections.Immutable.dll;System.Net.Ping.dll;System.IO.IsolatedStorage.dll;System.Security.Cryptography.Pkcs.dll;System.IO.FileSystem.AccessControl.dll;System.IO.FileSystem.DriveInfo.dll;System.Runtime.Serialization.Primitives.dll;System.Runtime.Serialization.Xml.dll;System.Diagnostics.StackTrace.dll;System.Diagnostics.Debug.dll;System.Runtime.Extensions.dll;System.Runtime.CompilerServices.VisualC.dll;System.dll;System.Xml.XDocument.dll;System.Xml.XPath.dll;System.Xml.Linq.dll;System.Diagnostics.Contracts.dll;</_PrunedRuntimeExactNames>
+  </PropertyGroup>
+
+  <Target Name="_MarkUnusedSelfContainedRuntimeAssets" Condition="'$(SelfContained)' == 'true'">
+    <ItemGroup>
+      <_UnusedSelfContainedPrefixMatch Include="@(_ResolvedCopyLocalPublishAssets);@(RuntimePackAsset);@(ResolvedFileToPublish)"
+                                     Condition="$([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Presentation')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('UIAutomation')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('System.Windows.Forms.Design')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Microsoft.VisualBasic')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Microsoft.DiaSymReader')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('mscordaccore')) or $([System.String]::Copy('$(_PrunedRuntimeExactNames)').Contains(';%(Filename)%(Extension);'))" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PruneResolvedCopyLocalForPublish"
+          Condition="'$(SelfContained)' == 'true'"
+          AfterTargets="_ComputeResolvedCopyLocalPublishAssets"
+          BeforeTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="_MarkUnusedSelfContainedRuntimeAssets">
+    <ItemGroup>
+      <_ResolvedCopyLocalPublishAssets Remove="@(_UnusedSelfContainedPrefixMatch)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PruneBeforeDepsAndBundle"
+          Condition="'$(SelfContained)' == 'true'"
+          AfterTargets="ILLink;_HandleFileConflictsForPublish"
+          BeforeTargets="GeneratePublishDependencyFile;_ComputeFilesToBundle;PrepareForBundle;GenerateSingleFileBundle">
+    <ItemGroup>
+      <_UnusedBeforeBundle Include="@(RuntimePackAsset);@(ResolvedFileToPublish)"
+                           Condition="$([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Presentation')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('UIAutomation')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('System.Windows.Forms.Design')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Microsoft.VisualBasic')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('Microsoft.DiaSymReader')) or $([System.String]::Copy('%(Filename)%(Extension)').StartsWith('mscordaccore')) or $([System.String]::Copy('$(_PrunedRuntimeExactNames)').Contains(';%(Filename)%(Extension);'))" />
+      <RuntimePackAsset Remove="@(_UnusedBeforeBundle)" />
+      <ResolvedFileToPublish Remove="@(_UnusedBeforeBundle)" />
+    </ItemGroup>
+  </Target>
 </Project>

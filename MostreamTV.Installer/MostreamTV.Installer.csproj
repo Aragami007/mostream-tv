@@ -1,17 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>MostreamTV.Installer</AssemblyName>
     <RootNamespace>MostreamTV.Installer</RootNamespace>
     <Product>Mostream TV Setup</Product>
-    <Version>0.6.0</Version>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <Version>0.6.1</Version>
     <ApplicationIcon>..\MostreamTV.Host\Assets\mostream.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <_DotNetFrameworkDir Condition="Exists('$(SystemRoot)\Microsoft.NET\Framework64\v4.0.30319')">$(SystemRoot)\Microsoft.NET\Framework64\v4.0.30319</_DotNetFrameworkDir>
+    <_DotNetFrameworkDir Condition="'$(_DotNetFrameworkDir)' == ''">C:\Windows\Microsoft.NET\Framework64\v4.0.30319</_DotNetFrameworkDir>
+    <FrameworkPathOverride Condition="Exists('$(_DotNetFrameworkDir)')">$(_DotNetFrameworkDir)</FrameworkPathOverride>
+    <EnableFrameworkPathOverride>true</EnableFrameworkPathOverride>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="..\MostreamTV.Host\Assets\mostream.ico" LogicalName="MostreamTV.Installer.mostream.ico" />
