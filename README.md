@@ -13,8 +13,6 @@
 
 [**Download**](https://github.com/Aragami007/mostream-tv/releases/latest) ·
 [Quick start](#-quick-start) ·
-[Host a party](#-tutorial-1--host-a-watch-party) ·
-[Join a party](#-tutorial-2--join-a-friends-watch-party) ·
 [Troubleshooting](#-troubleshooting)
 
 </div>
@@ -33,9 +31,6 @@
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Quick start](#-quick-start)
-- [Tutorial 1 — Host a watch party](#-tutorial-1--host-a-watch-party)
-- [Tutorial 2 — Join a friend's watch party](#-tutorial-2--join-a-friends-watch-party)
-- [Tutorial 3 — During the party](#-tutorial-3--during-the-party)
 - [Interface guide](#-interface-guide)
 - [How connections work](#-how-connections-work)
 - [Troubleshooting](#-troubleshooting)
@@ -169,112 +164,7 @@ To uninstall later: **Settings → Apps → Installed apps → Mostream TV → U
 
 **Friends:** open Mostream TV → select **Join watch party** → **Paste invite** → enter **Your name** → pick the same movie → **Join watch party**.
 
-That's it — press play and everyone watches together. The detailed tutorials follow below.
-
----
-
-## 🎉 Tutorial 1 — Host a watch party
-
-Follow these steps on the computer that will **host** the party.
-
-**Step 1 — Open Mostream TV.**
-Under **Watch party setup**, make sure **Mode** is set to **Host watch party** (this is the default).
-
-**Step 2 — Choose how friends will connect.**
-
-- Friends in **other places** → keep **Share over Internet** ✅ checked.
-- Friends on **your Wi-Fi only** → uncheck it. The server address changes to *This computer (LAN / Wi-Fi only)*.
-
-**Step 3 — Fill in the room details.**
-
-| Field | What to enter |
-|---|---|
-| **Room name** | Any name, e.g. `Movie Night`. Friends join this room. |
-| **Your name** | The name other people will see in chat and the participant list. |
-| **Password** | A password is generated for you. Tick **Show** to see it, or type your own. |
-| **TCP port** | Leave as `8999`. If that port is busy, Mostream TV picks a free one automatically. |
-
-**Step 4 — Pick your movie and player.**
-
-- Click **Choose movie…** and select the movie file. (You can skip this and add movies later.)
-- Choose a player from the **Media player** dropdown. If your player isn't listed, click **Choose player…** and browse to its `.exe` file.
-
-**Step 5 — Start the party.**
-Click **Start watch party**. After a few seconds, the **Invite friends** box shows your shareable `wss://…` link, the room name, and the password. Your media player opens with the movie.
-
-**Step 6 — Invite your friends.**
-Click **Copy join details** and paste the text into WhatsApp, Discord, email, or any chat app. It contains everything your friends need:
-
-```text
-Server: wss://example-words.trycloudflare.com
-Room: Movie Night
-Password: ••••••••••••
-LAN: 192.168.1.20:8999
-```
-
-> [!IMPORTANT]
-> Every new party gets a **new link and password**. Send fresh join details each time you start a party.
-
-**Step 7 — When you're done,** click **Stop watch party** (or just close Mostream TV). The server, tunnel, and media player all shut down automatically.
-
----
-
-## 🤝 Tutorial 2 — Join a friend's watch party
-
-Follow these steps on a **friend's** computer.
-
-**Step 1 — Get the invite.** Ask the host to send you their join details, then **copy the whole message** to your clipboard.
-
-**Step 2 — Switch to Join mode.** Open Mostream TV and under **Mode**, select **Join watch party**.
-
-**Step 3 — Paste the invite.** Click **Paste invite**. The **Server address**, **Room name**, and **Password** fill in automatically.
-
-<details>
-<summary>Prefer to type it in manually?</summary>
-
-- **Server address:** the `wss://…` link (Internet), or the `IP:port` shown after `LAN:` (same Wi-Fi).
-- **Room name:** exactly as the host wrote it.
-- **Password:** the host's password.
-
-</details>
-
-**Step 4 — Enter your name.** Type a name in **Your name** so others know who you are.
-
-**Step 5 — Pick the same movie.** Click **Choose movie…** and select **your copy** of the same movie the host is playing, then choose your **Media player**.
-
-**Step 6 — Join.** Click **Join watch party**. You'll appear in **Room & participants**, and your player will follow the host's playback.
-
-**Step 7 — Leave** at any time by clicking **Leave watch party** or closing the app.
-
----
-
-## 🍿 Tutorial 3 — During the party
-
-### Chatting
-Type in the **Type a chat message…** box and press **Send**. Messages appear under **Chat**, while joins, leaves, pauses, and seeks appear under **Activity log**.
-
-### Controlling playback
-Use your **media player's normal controls** (play, pause, seek). Mostream TV mirrors those actions to everyone in the room automatically.
-
-### Getting everyone ready
-1. Each viewer clicks **I'm ready to watch!** when they're set.
-2. To start automatically, tick **Play when all ready** and set **Min:** to the minimum number of viewers that must be ready (default `2`).
-3. Watch the **Status** column in **Room & participants** to see who is ready.
-
-### Using the shared playlist
-- **Add file(s)…** — add movies from your computer.
-- **Add URL…** — add an online stream link.
-- **Drag and drop** files straight onto the playlist area.
-- Select an item and click **Play**, **Remove**, or use **Shuffle**.
-
-> [!TIP]
-> If a participant's movie file differs from yours, hover over their row in **Room & participants** to see the difference. Double-click the row to switch to that file if you have it locally.
-
-### Switching rooms
-Pick a room from the **Room & participants** dropdown and click **Join room**.
-
-### Changing the theme
-Click the ☀️ / 🌙 icon in the top-right corner to switch between Dark and Light themes.
+That's it — press play and everyone watches together.
 
 ---
 
