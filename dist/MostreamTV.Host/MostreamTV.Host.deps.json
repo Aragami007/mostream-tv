@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "MostreamTV.Host/0.6.1": {
+      "MostreamTV.Host/0.6.2": {
         "runtime": {
           "MostreamTV.Host.dll": {}
         }
@@ -14,7 +14,7 @@
     }
   },
   "libraries": {
-    "MostreamTV.Host/0.6.1": {
+    "MostreamTV.Host/0.6.2": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

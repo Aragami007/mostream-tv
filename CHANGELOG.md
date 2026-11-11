@@ -2,6 +2,18 @@
 
 All notable changes to Mostream TV are documented here.
 
+## 0.6.2 - 2026-11-12
+
+### Added
+
+- Auto-detection of installed media players on Windows (`VLC`, `Windows Media Player`, `mpv`, `mpv.net`, `MPC-HC`, `MPC-BE`, `Shoukaku`, `Memento`, and `MPlayer` via standard install directories, WinGet/Scoop/Chocolatey, Windows Registry `App Paths` / `Uninstall` / file associations, and `PATH`) in `MediaPlayerCatalog`, replacing the single-path text box with a themed **Media player** dropdown selector (`DropDownList`) and persisting the user's preferred player across launches.
+- Synchronized **Windows Media Player** (`wmplayer.exe`) watch-party backend (`WmpPlayerForm` via native Windows `wmp.dll` COM + `WmpPlayer` Syncplay plugin) supporting open, play/pause, seek, speed, OSD notifications, and clean exit alongside Syncplay's native players.
+
+### Fixed
+
+- Fixed a native `0xC0000005` / `.NET Runtime` (`0x80131506`) crash when clicking **Copy join details** (`Clipboard.SetText`) in self-contained builds by removing IL trimming (`PublishTrimmed`) from `MostreamTV.Host` while preserving non-trimming single-file runtime pruning, English-only resource filtering, headless Syncplay stripping, and the `.NET Framework 4.8` LZX installer (~33.0 MB Setup EXE, ~39.9 MB portable ZIP).
+- Prevented startup `[WinError 10048]` port-binding failures by cleaning up orphaned `syncplayServer.exe` / `cloudflared.exe` runtime processes, scoping runtime child processes to a kill-on-close Windows Job Object, auto-selecting an available default TCP port when port `8999` is occupied, surfacing clear port-conflict errors, and suppressing frozen Python startup warnings in `SyncplayHost`.
+
 ## 0.6.1 - 2026-11-11
 
 ### Changed

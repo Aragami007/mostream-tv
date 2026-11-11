@@ -144,6 +144,10 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
         startInfo.Environment["MOSTREAM_BRIDGE"] = "1";
         startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
         startInfo.Environment["PYTHONUNBUFFERED"] = "1";
+        startInfo.Environment["PYTHONWARNINGS"] = "ignore";
+        var wmpHostExe = ResolveWmpHostExecutable();
+        if (!string.IsNullOrEmpty(wmpHostExe))
+            startInfo.Environment["MOSTREAM_WMP_HOST_EXE"] = wmpHostExe;
 
         startInfo.ArgumentList.Add("--no-gui");
         startInfo.ArgumentList.Add("--host");
@@ -177,6 +181,7 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
         }
 
         _process = process;
+        ChildProcessGuard.Attach(process);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
@@ -237,9 +242,9 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
                 }
             }
         }
-        catch (InvalidOperationException)
+        catch
         {
-            // Process exited concurrently.
+            // Ignore process-exit races or kill failures during teardown.
         }
         finally
         {
@@ -664,4 +669,13 @@ internal sealed class SyncplayClientSession : IAsyncDisposable
         obj.TryGetProperty(prop, out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt64(out var value)
             ? value
             : 0L;
+
+    private static string ResolveWmpHostExecutable()
+    {
+        var bundledExe = Path.Combine(AppContext.BaseDirectory, "MostreamTV.Host.exe");
+        if (File.Exists(bundledExe))
+            return bundledExe;
+
+        return File.Exists(Environment.ProcessPath) ? Environment.ProcessPath! : string.Empty;
+    }
 }

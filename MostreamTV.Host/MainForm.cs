@@ -73,11 +73,12 @@ internal sealed class MainForm : Form
         PlaceholderText = "Choose a movie file (or add one after starting)",
     };
     private readonly ThemedButton _browseButton = new() { Text = "Choose movie...", Anchor = AnchorStyles.Left | AnchorStyles.Right };
-    private readonly TextBox _playerPath = new()
+    private readonly ThemedComboBox _playerSelector = new()
     {
-        ReadOnly = true,
         Anchor = AnchorStyles.Left | AnchorStyles.Right,
-        PlaceholderText = "Choose VLC, mpv, mpv.net, MPC-HC, or MPC-BE",
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        AccessibleName = "Media player",
+        PlaceholderText = "No supported media player found — click Choose player...",
     };
     private readonly ThemedButton _browsePlayerButton = new() { Text = "Choose player...", Anchor = AnchorStyles.Left | AnchorStyles.Right };
 
@@ -124,6 +125,7 @@ internal sealed class MainForm : Form
     private string _joinPassword = string.Empty;
     private bool _closing;
     private bool _stopping;
+    private bool _suppressPlayerSelectionEvents;
 
     private PictureBox? _logoBox;
     private ThemedGroupBox? _setupGroup;
@@ -131,6 +133,8 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
+        ChildProcessGuard.CleanupOrphanedRuntimeProcesses();
+
         _runtime = new SyncplayRuntime();
         _host = new SyncplayHost(_runtime);
         _cloudflaredRuntime = new CloudflaredRuntime();
@@ -151,10 +155,11 @@ internal sealed class MainForm : Form
 
         _hostPassword = CreateFriendlyPassword();
         _password.Text = _hostPassword;
-        _playerPath.Text = HostConfiguration.FindDefaultMediaPlayer();
+        _port.Value = ChildProcessGuard.FindAvailableTcpPort(8999);
 
         WireEvents();
         Controls.Add(BuildLayout());
+        RefreshMediaPlayers(initialLoad: true);
         ApplyResponsiveDimensions();
         ApplyModeUi(focusServerField: false);
         ApplyTheme();
@@ -191,6 +196,8 @@ internal sealed class MainForm : Form
         _pasteInviteButton.Click += PasteInviteButtonOnClick;
         _showPasswordCheckBox.CheckedChanged += (_, _) => _password.UseSystemPasswordChar = !_showPasswordCheckBox.Checked;
         _browseButton.Click += BrowseButtonOnClick;
+        _playerSelector.DropDown += (_, _) => RefreshMediaPlayers(initialLoad: false);
+        _playerSelector.SelectedIndexChanged += PlayerSelectorOnSelectedIndexChanged;
         _browsePlayerButton.Click += BrowsePlayerButtonOnClick;
         _startButton.Click += StartButtonOnClick;
         _stopButton.Click += StopButtonOnClick;
@@ -416,7 +423,7 @@ internal sealed class MainForm : Form
         layout.Controls.Add(filePicker, 1, 5);
         layout.SetColumnSpan(filePicker, 3);
 
-        var playerPicker = BuildFilePickerRow(_playerPath, _browsePlayerButton);
+        var playerPicker = BuildFilePickerRow(_playerSelector, _browsePlayerButton);
         layout.Controls.Add(CreateFieldLabel("Media player"), 0, 6);
         layout.Controls.Add(playerPicker, 1, 6);
         layout.SetColumnSpan(playerPicker, 3);
@@ -425,7 +432,7 @@ internal sealed class MainForm : Form
         return group;
     }
 
-    private TableLayoutPanel BuildFilePickerRow(TextBox pathBox, ThemedButton browseButton)
+    private TableLayoutPanel BuildFilePickerRow(Control primaryControl, ThemedButton browseButton)
     {
         var picker = new TableLayoutPanel
         {
@@ -439,9 +446,9 @@ internal sealed class MainForm : Form
         picker.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         picker.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         picker.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        pathBox.Margin = new Padding(0, 2, 6, 2);
+        primaryControl.Margin = new Padding(0, 2, 6, 2);
         browseButton.Margin = new Padding(0, 2, 0, 2);
-        picker.Controls.Add(pathBox, 0, 0);
+        picker.Controls.Add(primaryControl, 0, 0);
         picker.Controls.Add(browseButton, 1, 0);
         return picker;
     }
@@ -522,6 +529,7 @@ internal sealed class MainForm : Form
         _pasteInviteButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
         _browseButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
         _browsePlayerButton.Size = new Size(pickerColumnWidth, inputButtonHeight);
+        UpdatePlayerDropDownWidth();
 
         var actionHeight = Math.Max(AppTheme.Scale(this, 38), Font.Height + AppTheme.Scale(this, 16));
         _startButton.Height = actionHeight;
@@ -726,7 +734,7 @@ internal sealed class MainForm : Form
             _password.Text,
             mode == WatchPartyMode.Host ? decimal.ToInt32(_port.Value) : parsedPort,
             _mediaPath.Text.Trim(),
-            _playerPath.Text.Trim(),
+            SelectedPlayerPath,
             mode == WatchPartyMode.Host && _shareOverInternetCheckBox.Checked);
     }
 
@@ -753,18 +761,132 @@ internal sealed class MainForm : Form
             _ = RunSessionCommandAsync(() => _clientSession.OpenFileAsync(picker.FileName));
     }
 
+    private string SelectedPlayerPath => (_playerSelector.SelectedItem as DetectedMediaPlayer)?.ExecutablePath ?? string.Empty;
+
     private void BrowsePlayerButtonOnClick(object? sender, EventArgs eventArgs)
     {
         using var picker = new OpenFileDialog
         {
             Title = "Choose a supported media player",
-            Filter = "Media players|vlc.exe;mpv.exe;mpvnet.exe;mpc-hc.exe;mpc-hc64.exe;mpc-be.exe;mpc-be64.exe;mplayer.exe|Applications|*.exe|All files|*.*",
+            Filter = "Media players|vlc.exe;vlcportable.exe;wmplayer.exe;mpv.exe;mpvnet.exe;mpc-hc.exe;mpc-hc64.exe;mpc-hcportable.exe;mpc-hc_nvo.exe;mpc-hc64_nvo.exe;mpc-be.exe;mpc-be64.exe;shoukaku.exe;memento.exe;mplayer.exe;mplayer2.exe|Applications|*.exe|All files|*.*",
             CheckFileExists = true,
             Multiselect = false,
         };
 
-        if (picker.ShowDialog(this) == DialogResult.OK)
-            _playerPath.Text = picker.FileName;
+        if (picker.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        if (!MediaPlayerCatalog.IsSupportedExecutable(picker.FileName))
+        {
+            MessageBox.Show(
+                this,
+                "Choose a supported media player executable (vlc.exe, wmplayer.exe, mpv.exe, mpvnet.exe, mpc-hc64.exe, mpc-be64.exe, memento.exe, or mplayer.exe).",
+                "Mostream TV",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(picker.FileName);
+        MediaPlayerCatalog.SavePreferredPlayerPath(fullPath);
+        RefreshMediaPlayers(initialLoad: false, preferredPathOverride: fullPath);
+    }
+
+    private void PlayerSelectorOnSelectedIndexChanged(object? sender, EventArgs eventArgs)
+    {
+        if (_suppressPlayerSelectionEvents)
+            return;
+
+        if (_playerSelector.SelectedItem is DetectedMediaPlayer selected)
+            MediaPlayerCatalog.SavePreferredPlayerPath(selected.ExecutablePath);
+
+        UpdatePlayerTooltip();
+    }
+
+    private void RefreshMediaPlayers(bool initialLoad, string? preferredPathOverride = null)
+    {
+        var preferredPath = preferredPathOverride
+            ?? (initialLoad ? MediaPlayerCatalog.LoadPreferredPlayerPath() : SelectedPlayerPath);
+        var players = MediaPlayerCatalog.DetectInstalledPlayers(preferredPath);
+        var desiredSelection = MediaPlayerCatalog.ResolveInitialSelection(players, preferredPath);
+
+        var itemsChanged = _playerSelector.Items.Count != players.Count;
+        if (!itemsChanged)
+        {
+            for (var i = 0; i < players.Count; i++)
+            {
+                if (_playerSelector.Items[i] is not DetectedMediaPlayer existing
+                    || !string.Equals(existing.ExecutablePath, players[i].ExecutablePath, StringComparison.OrdinalIgnoreCase)
+                    || existing.IsSystemDefault != players[i].IsSystemDefault)
+                {
+                    itemsChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if (itemsChanged || initialLoad)
+        {
+            _suppressPlayerSelectionEvents = true;
+            try
+            {
+                _playerSelector.BeginUpdate();
+                _playerSelector.Items.Clear();
+                foreach (var player in players)
+                    _playerSelector.Items.Add(player);
+                _playerSelector.SelectedItem = desiredSelection;
+                _playerSelector.EndUpdate();
+            }
+            finally
+            {
+                _suppressPlayerSelectionEvents = false;
+            }
+        }
+        else if (desiredSelection is not null
+            && !string.Equals(SelectedPlayerPath, desiredSelection.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressPlayerSelectionEvents = true;
+            try
+            {
+                _playerSelector.SelectedItem = desiredSelection;
+            }
+            finally
+            {
+                _suppressPlayerSelectionEvents = false;
+            }
+        }
+
+        UpdatePlayerTooltip();
+        UpdatePlayerDropDownWidth();
+    }
+
+    private void UpdatePlayerTooltip()
+    {
+        var selected = _playerSelector.SelectedItem as DetectedMediaPlayer;
+        _toolTip.SetToolTip(
+            _playerSelector,
+            selected is null
+                ? "No supported media player detected. Click Choose player... to locate one."
+                : selected.ExecutablePath);
+    }
+
+    private void UpdatePlayerDropDownWidth()
+    {
+        var maxWidth = Math.Max(180, _playerSelector.Width);
+        foreach (var item in _playerSelector.Items)
+        {
+            var label = item?.ToString();
+            if (string.IsNullOrEmpty(label))
+                continue;
+            var measured = TextRenderer.MeasureText(label, _playerSelector.Font).Width
+                + SystemInformation.VerticalScrollBarWidth
+                + AppTheme.Scale(this, 16);
+            if (measured > maxWidth)
+                maxWidth = measured;
+        }
+
+        var workingWidth = Screen.FromControl(this).WorkingArea.Width - AppTheme.Scale(this, 48);
+        _playerSelector.DropDownWidth = Math.Min(maxWidth, Math.Max(220, workingWidth));
     }
 
     private void MainFormOnDragEnter(object? sender, DragEventArgs eventArgs)
@@ -860,10 +982,7 @@ internal sealed class MainForm : Form
             {
                 _activeConfiguration = null;
                 _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
-                await _clientSession.StopAsync();
-                await _tunnelHost.StopAsync();
-                if (configuration.IsHost)
-                    await _host.StopAsync();
+                await StopAllRuntimeProcessesAsync(stopHost: configuration.IsHost);
                 throw;
             }
             finally
@@ -892,9 +1011,7 @@ internal sealed class MainForm : Form
             var wasHost = _host.IsRunning || _tunnelHost.IsRunning;
             SetBusy(true, wasHost ? "Stopping watch party..." : "Leaving watch party...");
             _watchPartyPanel.SetActive(false);
-            await _clientSession.StopAsync();
-            await _tunnelHost.StopAsync();
-            await _host.StopAsync();
+            await StopAllRuntimeProcessesAsync();
             _activeConfiguration = null;
             _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
             SetRunningState(false);
@@ -925,11 +1042,15 @@ internal sealed class MainForm : Form
         _startupCts?.Cancel();
         Enabled = false;
         _status.Text = "Stopping watch party...";
-        await _clientSession.DisposeAsync();
-        await _tunnelHost.DisposeAsync();
-        await _host.DisposeAsync();
-        FormClosing -= MainFormOnFormClosing;
-        Close();
+        try
+        {
+            await StopAllRuntimeProcessesAsync(dispose: true);
+        }
+        finally
+        {
+            FormClosing -= MainFormOnFormClosing;
+            Close();
+        }
     }
 
     private void HostOnServerExited(object? sender, int exitCode)
@@ -939,13 +1060,18 @@ internal sealed class MainForm : Form
 
         BeginInvoke(async () =>
         {
-            _watchPartyPanel.SetActive(false);
-            await _clientSession.StopAsync();
-            await _tunnelHost.StopAsync();
-            _activeConfiguration = null;
-            _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
-            SetRunningState(false);
-            _status.Text = $"Server stopped unexpectedly (exit code {exitCode})";
+            try
+            {
+                _watchPartyPanel.SetActive(false);
+                await StopAllRuntimeProcessesAsync(stopHost: false);
+                _activeConfiguration = null;
+                _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
+                SetRunningState(false);
+                _status.Text = $"Server stopped unexpectedly (exit code {exitCode})";
+            }
+            catch
+            {
+            }
         });
     }
 
@@ -976,18 +1102,61 @@ internal sealed class MainForm : Form
 
         BeginInvoke(async () =>
         {
-            var wasHost = _host.IsRunning || _tunnelHost.IsRunning;
-            _watchPartyPanel.SetActive(false);
-            await _clientSession.StopAsync();
-            await _tunnelHost.StopAsync();
-            await _host.StopAsync();
-            _activeConfiguration = null;
-            _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
-            SetRunningState(false);
-            _status.Text = wasHost
-                ? "Media player closed; watch party stopped"
-                : "Disconnected from watch party";
+            try
+            {
+                var wasHost = _host.IsRunning || _tunnelHost.IsRunning;
+                _watchPartyPanel.SetActive(false);
+                await StopAllRuntimeProcessesAsync();
+                _activeConfiguration = null;
+                _joinDetails.Text = IsHostMode ? IdleHostPlaceholder : IdleJoinPlaceholder;
+                SetRunningState(false);
+                _status.Text = wasHost
+                    ? "Media player closed; watch party stopped"
+                    : "Disconnected from watch party";
+            }
+            catch
+            {
+            }
         });
+    }
+
+    private async Task StopAllRuntimeProcessesAsync(bool stopHost = true, bool dispose = false)
+    {
+        try
+        {
+            if (dispose)
+                await _clientSession.DisposeAsync();
+            else
+                await _clientSession.StopAsync();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            if (dispose)
+                await _tunnelHost.DisposeAsync();
+            else
+                await _tunnelHost.StopAsync();
+        }
+        catch
+        {
+        }
+
+        if (stopHost)
+        {
+            try
+            {
+                if (dispose)
+                    await _host.DisposeAsync();
+                else
+                    await _host.StopAsync();
+            }
+            catch
+            {
+            }
+        }
     }
 
     private void UpdateJoinDetails(HostConfiguration configuration)
@@ -1040,7 +1209,7 @@ internal sealed class MainForm : Form
         SetFieldLocked(_hostName, running, palette);
         SetFieldLocked(_password, running, palette);
         UpdatePortEnabledState(running);
-        AppTheme.StyleTextBox(_playerPath, palette);
+        _playerSelector.Enabled = !running;
         _browsePlayerButton.Enabled = !running;
         AppTheme.StyleTextBox(_mediaPath, palette);
         _browseButton.Enabled = true;

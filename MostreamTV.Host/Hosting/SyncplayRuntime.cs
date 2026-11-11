@@ -8,9 +8,13 @@ namespace MostreamTV.Host.Hosting;
 internal sealed class SyncplayRuntime
 {
     private const string Version = "1.7.6";
-    private const string BridgeResourceName = "MostreamTV.Host.Bridge.consoleUI.py";
-    private const string BridgeEntryPy = "syncplay/ui/consoleUI.py";
-    private const string BridgeEntryPyc = "syncplay/ui/consoleUI.pyc";
+
+    private static readonly (string ResourceName, string ZipEntryPath, string? CompiledEntryPath)[] BridgePatches =
+    [
+        ("MostreamTV.Host.Bridge.consoleUI.py", "syncplay/ui/consoleUI.py", "syncplay/ui/consoleUI.pyc"),
+        ("MostreamTV.Host.Bridge.wmpPlayer.py", "syncplay/players/wmp.py", "syncplay/players/wmp.pyc"),
+        ("MostreamTV.Host.Bridge.playersInit.py", "syncplay/players/__init__.py", "syncplay/players/__init__.pyc"),
+    ];
 
     private readonly string _archivePath;
     private readonly string _installDirectory;
@@ -78,8 +82,11 @@ internal sealed class SyncplayRuntime
         if (!string.Equals(contents, updated, StringComparison.Ordinal))
             await File.WriteAllTextAsync(configPath, updated, cancellationToken);
 
-        var bridgeScript = LoadEmbeddedBridgeScript();
-        var bridgeHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(bridgeScript)));
+        var patchContents = BridgePatches
+            .Select(patch => (patch.ZipEntryPath, patch.CompiledEntryPath, Content: LoadEmbeddedBridgeScript(patch.ResourceName)))
+            .ToArray();
+        var combinedPayload = string.Join("\n--MOSTREAM-PATCH--\n", patchContents.Select(p => $"{p.ZipEntryPath}\n{p.Content}"));
+        var bridgeHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(combinedPayload)));
         var markerPath = Path.Combine(_installDirectory, ".mostream-bridge-version");
         var libZipPath = Path.Combine(_installDirectory, "lib", "libsync.zip");
 
@@ -96,22 +103,26 @@ internal sealed class SyncplayRuntime
         await Task.Run(() =>
         {
             using var archive = ZipFile.Open(libZipPath, ZipArchiveMode.Update);
-            archive.GetEntry(BridgeEntryPyc)?.Delete();
-            archive.GetEntry(BridgeEntryPy)?.Delete();
+            foreach (var (zipEntryPath, compiledEntryPath, content) in patchContents)
+            {
+                if (!string.IsNullOrEmpty(compiledEntryPath))
+                    archive.GetEntry(compiledEntryPath)?.Delete();
+                archive.GetEntry(zipEntryPath)?.Delete();
 
-            var entry = archive.CreateEntry(BridgeEntryPy, CompressionLevel.Optimal);
-            using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            writer.Write(bridgeScript);
+                var entry = archive.CreateEntry(zipEntryPath, CompressionLevel.Optimal);
+                using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                writer.Write(content);
+            }
         }, cancellationToken);
 
         await File.WriteAllTextAsync(markerPath, bridgeHash, cancellationToken);
     }
 
-    private static string LoadEmbeddedBridgeScript()
+    private static string LoadEmbeddedBridgeScript(string resourceName)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        using var stream = assembly.GetManifestResourceStream(BridgeResourceName)
-            ?? throw new InvalidOperationException($"Missing embedded bridge resource '{BridgeResourceName}'.");
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Missing embedded bridge resource '{resourceName}'.");
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();
     }

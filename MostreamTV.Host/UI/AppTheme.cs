@@ -407,7 +407,7 @@ internal static class AppTheme
 
     internal static bool TryHandleDarkCtlColor(ref Message m, ThemePalette palette, bool enabled, IntPtr brushHandle)
     {
-        if (!palette.IsDark || (m.Msg != NativeMethods.WmCtlColorEdit && m.Msg != NativeMethods.WmCtlColorStatic))
+        if (!palette.IsDark || (m.Msg != NativeMethods.WmCtlColorEdit && m.Msg != NativeMethods.WmCtlColorListBox && m.Msg != NativeMethods.WmCtlColorStatic))
             return false;
 
         var back = enabled ? palette.InputBack : palette.SurfaceBack;
@@ -444,6 +444,7 @@ internal static class NativeMethods
     public const int WmPaint = 0x000F;
     public const int WmEraseBkgnd = 0x0014;
     public const int WmCtlColorEdit = 0x0133;
+    public const int WmCtlColorListBox = 0x0134;
     public const int WmCtlColorStatic = 0x0138;
     public const int WmReflect = 0x2000;
     public const int WmPrint = 0x0317;
@@ -692,6 +693,8 @@ internal sealed class ThemedComboBox : ComboBox
     private ThemePalette _palette = AppTheme.Light;
     private IntPtr _editBrush;
 
+    public string PlaceholderText { get; set; } = string.Empty;
+
     public ThemedComboBox()
     {
         DrawMode = DrawMode.OwnerDrawFixed;
@@ -722,12 +725,44 @@ internal sealed class ThemedComboBox : ComboBox
 
     protected override void OnDrawItem(DrawItemEventArgs e)
     {
+        var isComboEdit = (e.State & DrawItemState.ComboBoxEdit) != 0;
         if (e.Index < 0 || e.Index >= Items.Count)
+        {
+            if (!isComboEdit)
+                return;
+
+            var emptyBack = Enabled
+                ? (_palette.IsDark ? _palette.InputBack : SystemColors.Window)
+                : (_palette.IsDark ? _palette.SurfaceBack : SystemColors.Control);
+            using var emptyBrush = new SolidBrush(emptyBack);
+            e.Graphics.FillRectangle(emptyBrush, e.Bounds);
+
+            if (!string.IsNullOrEmpty(PlaceholderText))
+            {
+                var emptyBounds = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 8), e.Bounds.Height);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    PlaceholderText,
+                    Font,
+                    emptyBounds,
+                    _palette.TextMuted,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+
             return;
+        }
 
         var selected = (e.State & DrawItemState.Selected) != 0;
-        var back = selected ? _palette.SelectionBack : (_palette.IsDark ? _palette.InputBack : SystemColors.Window);
-        var fore = selected ? Color.White : _palette.TextPrimary;
+        var back = !Enabled
+            ? (_palette.IsDark ? _palette.SurfaceBack : SystemColors.Control)
+            : selected
+                ? _palette.SelectionBack
+                : (_palette.IsDark ? _palette.InputBack : SystemColors.Window);
+        var fore = !Enabled
+            ? _palette.TextMuted
+            : selected
+                ? Color.White
+                : _palette.TextPrimary;
 
         using var backBrush = new SolidBrush(back);
         e.Graphics.FillRectangle(backBrush, e.Bounds);
@@ -808,13 +843,17 @@ internal sealed class ThemedComboBox : ComboBox
         using (var backBrush = new SolidBrush(back))
             graphics.FillRegion(backBrush, frameRegion);
 
-        if (!Enabled && !string.IsNullOrEmpty(Text) && itemRect.Width > 0 && itemRect.Height > 0)
+        var disabledText = !string.IsNullOrEmpty(Text) ? Text : PlaceholderText;
+        if (!Enabled && !string.IsNullOrEmpty(disabledText) && itemRect.Width > 0 && itemRect.Height > 0)
         {
+            var disabledTextRect = DropDownStyle == ComboBoxStyle.DropDownList
+                ? new Rectangle(itemRect.X + 4, itemRect.Y, Math.Max(0, itemRect.Width - 8), itemRect.Height)
+                : itemRect;
             TextRenderer.DrawText(
                 graphics,
-                Text,
+                disabledText,
                 Font,
-                itemRect,
+                disabledTextRect,
                 _palette.TextMuted,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         }

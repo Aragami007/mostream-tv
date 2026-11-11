@@ -10,7 +10,7 @@
     <AssemblyName>MostreamTV.Installer</AssemblyName>
     <RootNamespace>MostreamTV.Installer</RootNamespace>
     <Product>Mostream TV Setup</Product>
-    <Version>0.6.1</Version>
+    <Version>0.6.2</Version>
     <ApplicationIcon>..\MostreamTV.Host\Assets\mostream.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <_DotNetFrameworkDir Condition="Exists('$(SystemRoot)\Microsoft.NET\Framework64\v4.0.30319')">$(SystemRoot)\Microsoft.NET\Framework64\v4.0.30319</_DotNetFrameworkDir>

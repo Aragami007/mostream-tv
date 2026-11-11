@@ -26,6 +26,16 @@ internal sealed class SyncplayHost : IAsyncDisposable
             throw new InvalidOperationException("The private server is already running.");
 
         await _runtime.EnsureAvailableAsync(cancellationToken);
+        ChildProcessGuard.CleanupOrphanedRuntimeProcesses();
+
+        if (!ChildProcessGuard.IsTcpPortAvailable(configuration.Port))
+        {
+            var suggestedPort = ChildProcessGuard.FindAvailableTcpPort(configuration.Port + 1);
+            var hint = suggestedPort != configuration.Port ? $" (for example {suggestedPort})" : string.Empty;
+            throw new InvalidOperationException(
+                $"TCP port {configuration.Port} is already in use by another program. Choose a different TCP port{hint} and try again.");
+        }
+
         lock (_outputLock)
             _serverOutput.Clear();
 
@@ -45,6 +55,7 @@ internal sealed class SyncplayHost : IAsyncDisposable
         startInfo.ArgumentList.Add("0.0.0.0");
         startInfo.Environment["SYNCPLAY_PASSWORD"] = configuration.Password;
         startInfo.Environment["SYNCPLAY_SALT"] = CreateServerSalt();
+        startInfo.Environment["PYTHONWARNINGS"] = "ignore";
 
         var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         process.OutputDataReceived += CaptureOutput;
@@ -55,6 +66,7 @@ internal sealed class SyncplayHost : IAsyncDisposable
         {
             if (!process.Start())
                 throw new InvalidOperationException("Windows could not start the private server.");
+            ChildProcessGuard.Attach(process);
             _serverProcess = process;
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -62,9 +74,26 @@ internal sealed class SyncplayHost : IAsyncDisposable
 
             if (process.HasExited)
             {
+                string rawOutput;
                 string details;
                 lock (_outputLock)
-                    details = string.Join(Environment.NewLine, _serverOutput.TakeLast(8));
+                {
+                    rawOutput = string.Join(Environment.NewLine, _serverOutput);
+                    details = string.Join(
+                        Environment.NewLine,
+                        _serverOutput.Where(line => !IsPythonWarningNoise(line)).TakeLast(8));
+                }
+
+                if (rawOutput.Contains("10048", StringComparison.Ordinal)
+                    || rawOutput.Contains("Couldn't listen", StringComparison.OrdinalIgnoreCase)
+                    || rawOutput.Contains("Address already in use", StringComparison.OrdinalIgnoreCase))
+                {
+                    var suggestedPort = ChildProcessGuard.FindAvailableTcpPort(configuration.Port + 1);
+                    var hint = suggestedPort != configuration.Port ? $" (for example {suggestedPort})" : string.Empty;
+                    throw new InvalidOperationException(
+                        $"TCP port {configuration.Port} is already in use by another program. Choose a different TCP port{hint} and try again.");
+                }
+
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(details)
                         ? "The private server closed during startup."
@@ -95,9 +124,9 @@ internal sealed class SyncplayHost : IAsyncDisposable
                 await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
             }
         }
-        catch (InvalidOperationException)
+        catch
         {
-            // The process exited between the state check and shutdown.
+            // Ignore process-exit races or timeout if process is already tearing down.
         }
         finally
         {
@@ -124,6 +153,14 @@ internal sealed class SyncplayHost : IAsyncDisposable
         if (sender is Process process)
             ServerExited?.Invoke(this, process.ExitCode);
     }
+
+    private static bool IsPythonWarningNoise(string line) =>
+        line.StartsWith("<frozen zipimport>:", StringComparison.Ordinal)
+        || line.Contains("CryptographyDeprecationWarning", StringComparison.Ordinal)
+        || line.Contains("32-bit Python on a 64-bit Windows", StringComparison.OrdinalIgnoreCase)
+        || line.TrimStart().StartsWith("is deprecated in cryptography", StringComparison.OrdinalIgnoreCase)
+        || line.TrimStart().StartsWith("remove support for Python", StringComparison.OrdinalIgnoreCase)
+        || line.TrimStart().StartsWith("Cryptography will be significantly faster", StringComparison.OrdinalIgnoreCase);
 
     private static string CreateServerSalt()
     {

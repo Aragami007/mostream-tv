@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using MostreamTV.Host.Hosting;
 
 namespace MostreamTV.Host.Networking;
 
@@ -133,6 +134,7 @@ internal sealed partial class WebSocketTunnelHost : IAsyncDisposable
         }
 
         _process = process;
+        ChildProcessGuard.Attach(process);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
@@ -184,7 +186,8 @@ internal sealed partial class WebSocketTunnelHost : IAsyncDisposable
             {
                 if (!process.HasExited)
                     process.Kill(entireProcessTree: true);
-                await process.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token);
+                using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                await process.WaitForExitAsync(waitCts.Token);
             }
             catch
             {

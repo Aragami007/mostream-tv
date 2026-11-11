@@ -57,7 +57,7 @@ internal static class Program
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             if (info is not null && !string.IsNullOrWhiteSpace(info))
                 return info.Split('+')[0];
-            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.6.1";
+            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.6.2";
         }
     }
 
